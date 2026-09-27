@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/* Design tokens: Dieuliko palette; typography, radii and spacing inherited from the BestJob template */
+@theme {
+  /* Dieuliko brand palette (cahier des charges §12–13) */
+  --color-ink: #111827; /* navy: text, dark sections, footer */
+  --color-ink-deep: #111827; /* navy: dense body text */
+  --color-primary: #ef791a; /* Dieuliko orange: CTAs, icons, active links */
+  --color-primary-deep: #ec761e; /* orange variant: hover states, eyebrow labels */
+  --color-surface: #f4f6f8; /* light neutral: heroes, secondary sections, cards */
+  --color-accent-soft: #fde6d2; /* light orange tint derived from #ef791a: badges, bubbles */
+  --color-muted: #6b7280; /* secondary text */
+  --color-soft: #f8f6f6; /* off-white: pills, grey sections */
+  --color-line: #e5e7eb; /* dividers */
+  --color-star: #f5a623;
+
+  --font-heading: var(--font-reddit-sans), sans-serif;
+  --font-body: var(--font-hanken-grotesk), sans-serif;
+
+  --container-site: 1200px;
+
+  /* Framer breakpoints: mobile < 810 ≤ tablet < 1200 ≤ desktop */
+  --breakpoint-tab: 810px;
+  --breakpoint-desk: 1200px;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: #ffffff;
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 18px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    color: var(--color-ink);
+    line-height: 1.2;
+  }
+}
