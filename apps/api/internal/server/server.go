@@ -12,6 +12,7 @@ import (
 	"github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
@@ -38,6 +39,8 @@ type Deps struct {
 	// RateLimiter budgets public clients (per IP); InternalLimiter budgets token-bearing server calls.
 	RateLimiter     *httpx.RateLimiter
 	InternalLimiter *httpx.RateLimiter
+	Accounts        auth.Accounts
+	AuthLimiters    auth.Limiters
 }
 
 // New returns the HTTP handler of the API.
@@ -62,6 +65,7 @@ func New(deps Deps) (*gin.Engine, error) {
 		cors.New(cors.Config{
 			AllowOrigins: deps.Config.CORSOrigins,
 			AllowMethods: []string{http.MethodGet, http.MethodOptions},
+			// The browser only reads the public directory; account calls go through the Next.js server.
 			AllowHeaders: []string{"Content-Type", "X-Request-ID"},
 			MaxAge:       corsMaxAge,
 		}),
@@ -71,9 +75,10 @@ func New(deps Deps) (*gin.Engine, error) {
 	router.GET("/healthz", func(c *gin.Context) { httpx.OK(c, gin.H{"status": "ok"}) })
 	router.GET("/readyz", readiness(deps.DB))
 
-	rateLimit := httpx.RateLimit(deps.RateLimiter, deps.InternalLimiter, httpx.HasInternalToken(deps.Config.InternalToken))
-	v1 := router.Group("/v1", rateLimit)
+	isInternal := httpx.HasInternalToken(deps.Config.InternalToken)
+	v1 := router.Group("/v1", httpx.RateLimit(deps.RateLimiter, deps.InternalLimiter, isInternal))
 	company.NewHandler(deps.Companies).Register(v1)
+	auth.NewHandler(deps.Accounts, deps.AuthLimiters, httpx.EndUserIP(isInternal)).Register(v1)
 
 	return router, nil
 }

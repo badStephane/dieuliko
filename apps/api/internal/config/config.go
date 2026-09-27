@@ -27,7 +27,21 @@ type Config struct {
 	InternalToken          string
 	InternalRateLimitRPS   float64
 	InternalRateLimitBurst int
-	LogLevel               slog.Level
+	// AppBaseURL is the public URL of the web front, used in email links.
+	AppBaseURL string
+	SMTP       SMTPConfig
+	LogLevel   slog.Level
+}
+
+// SMTPConfig describes the outgoing mail relay (Mailpit in development).
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	// TLS is "none", "starttls" or "tls".
+	TLS  string
+	From string
 }
 
 const (
@@ -39,6 +53,11 @@ const (
 	// All server-side rendering goes through the internal bucket, hence the larger budget.
 	defaultInternalRateRPS   = "200"
 	defaultInternalRateBurst = "400"
+	defaultAppBaseURL        = "http://localhost:3000"
+	defaultSMTPHost          = "127.0.0.1"
+	defaultSMTPPort          = "1025"
+	defaultSMTPTLS           = "none"
+	defaultMailFrom          = "Dieuliko <no-reply@dieuliko.local>"
 	// MinInternalTokenLength keeps the internal token out of brute-force reach.
 	MinInternalTokenLength = 32
 )
@@ -81,6 +100,23 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		errs = append(errs, fmt.Errorf("INTERNAL_API_TOKEN must be at least %d characters", MinInternalTokenLength))
 	}
 
+	appBaseURL, err := parseBaseURL(get("APP_BASE_URL", defaultAppBaseURL))
+	if err != nil {
+		errs = append(errs, err)
+	}
+	smtpPort, err := strconv.Atoi(get("SMTP_PORT", defaultSMTPPort))
+	if err != nil || smtpPort < 1 || smtpPort > 65535 {
+		errs = append(errs, errors.New("SMTP_PORT must be a port number"))
+	}
+	smtp := SMTPConfig{
+		Host:     get("SMTP_HOST", defaultSMTPHost),
+		Port:     smtpPort,
+		Username: get("SMTP_USERNAME", ""),
+		Password: get("SMTP_PASSWORD", ""),
+		TLS:      get("SMTP_TLS", defaultSMTPTLS),
+		From:     get("MAIL_FROM", defaultMailFrom),
+	}
+
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(get("LOG_LEVEL", defaultLogLevel))); err != nil {
 		errs = append(errs, fmt.Errorf("LOG_LEVEL: %w", err))
@@ -99,6 +135,8 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		InternalToken:          internalToken,
 		InternalRateLimitRPS:   internalRPS,
 		InternalRateLimitBurst: internalBurst,
+		AppBaseURL:             appBaseURL,
+		SMTP:                   smtp,
 		LogLevel:               level,
 	}, nil
 }
@@ -131,6 +169,15 @@ func splitList(raw string) []string {
 		}
 	}
 	return items
+}
+
+// parseBaseURL accepts an absolute http(s) URL and drops any trailing slash.
+func parseBaseURL(raw string) (string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.RawQuery != "" {
+		return "", fmt.Errorf("APP_BASE_URL: %q is not an absolute http(s) URL", raw)
+	}
+	return strings.TrimRight(raw, "/"), nil
 }
 
 func parseOrigins(raw string) ([]string, error) {

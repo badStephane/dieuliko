@@ -9,16 +9,19 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/database"
 	"github.com/badStephane/dieuliko/apps/api/internal/database/dbgen"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/mail"
 	"github.com/badStephane/dieuliko/apps/api/internal/server"
 )
 
@@ -29,6 +32,8 @@ const (
 	idleTimeout       = 120 * time.Second
 	shutdownTimeout   = 15 * time.Second
 	maxHeaderBytes    = 1 << 20
+	// cleanupInterval is how often expired sessions and email tokens are deleted.
+	cleanupInterval = time.Hour
 )
 
 func main() {
@@ -56,9 +61,25 @@ func run() error {
 	}
 	defer pool.Close()
 
+	mailer, err := mail.NewSMTPMailer(mail.SMTPConfig(cfg.SMTP))
+	if err != nil {
+		return err
+	}
+	accounts, err := auth.NewService(pool, mailer, logger, auth.DefaultConfig(cfg.AppBaseURL))
+	if err != nil {
+		return err
+	}
+	defer accounts.Wait() // let background emails finish after the server stops
+
+	// Periodic jobs stop with ctx; they are joined before the pool closes.
+	var jobs sync.WaitGroup
+	defer jobs.Wait()
+	jobs.Go(func() { cleanupPeriodically(ctx, logger, accounts) })
+
 	limiter := httpx.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, server.RateLimiterIdleTTL)
 	internalLimiter := httpx.NewRateLimiter(cfg.InternalRateLimitRPS, cfg.InternalRateLimitBurst, server.RateLimiterIdleTTL)
-	go evictPeriodically(ctx, limiter)
+	authLimiters := auth.NewLimiters(server.RateLimiterIdleTTL)
+	jobs.Go(func() { evictPeriodically(ctx, append([]*httpx.RateLimiter{limiter}, authLimiters.All()...)) })
 
 	handler, err := server.New(server.Deps{
 		Config:          cfg,
@@ -67,6 +88,8 @@ func run() error {
 		Companies:       company.NewPostgresRepository(dbgen.New(pool)),
 		RateLimiter:     limiter,
 		InternalLimiter: internalLimiter,
+		Accounts:        accounts,
+		AuthLimiters:    authLimiters,
 	})
 	if err != nil {
 		return err
@@ -109,7 +132,7 @@ func run() error {
 // evictionsPerTTL makes idle buckets live at most 1.25 × the TTL, bounding memory under IP rotation.
 const evictionsPerTTL = 4
 
-func evictPeriodically(ctx context.Context, limiter *httpx.RateLimiter) {
+func evictPeriodically(ctx context.Context, limiters []*httpx.RateLimiter) {
 	ticker := time.NewTicker(server.RateLimiterIdleTTL / evictionsPerTTL)
 	defer ticker.Stop()
 	for {
@@ -117,7 +140,27 @@ func evictPeriodically(ctx context.Context, limiter *httpx.RateLimiter) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			limiter.Evict()
+			for _, limiter := range limiters {
+				limiter.Evict()
+			}
+		}
+	}
+}
+
+func cleanupPeriodically(ctx context.Context, logger *slog.Logger, accounts *auth.Service) {
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sessions, tokens, err := accounts.Cleanup(ctx)
+			if err != nil {
+				logger.Error("auth cleanup", slog.String("error", err.Error()))
+				continue
+			}
+			logger.Info("auth cleanup", slog.Int64("sessions", sessions), slog.Int64("email_tokens", tokens))
 		}
 	}
 }

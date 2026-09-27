@@ -1,6 +1,6 @@
 # Dieuliko API
 
-Backend Go (Gin + pgx + sqlc) de Dieuliko. Étape 1 : annuaire des entreprises en lecture seule.
+Backend Go (Gin + pgx + sqlc) de Dieuliko : annuaire des entreprises (lecture seule) et comptes (candidats, admins).
 
 ## Démarrage
 
@@ -9,10 +9,11 @@ Prérequis : Go 1.26, Docker, [sqlc](https://sqlc.dev) (seulement pour régéné
 ```bash
 cd apps/api
 cp .env.example .env   # puis renseigner INTERNAL_API_TOKEN (openssl rand -hex 32)
-make db-up             # PostgreSQL 17 sur 127.0.0.1:5433 (docker-compose.yml à la racine)
+make db-up             # PostgreSQL 17 (127.0.0.1:5433) + Mailpit (SMTP 1025, emails lisibles sur http://localhost:8025)
 make migrate           # migrations goose embarquées
 make seed              # importe data/companies_scraped.json (upsert idempotent)
 make run               # API sur HTTP_ADDR (127.0.0.1:8090 par défaut dans .env.example)
+make admin EMAIL=admin@dieuliko.sn FIRST=Awa LAST=Diop   # crée un administrateur (mot de passe demandé)
 ```
 
 Brancher le front : dans `apps/web/.env.local`, définir `DIEULIKO_API_URL=http://127.0.0.1:8090`
@@ -33,6 +34,32 @@ Les messages d'erreur sont en français et affichables ; le front se base sur `c
 | GET | `/v1/sectors` | Taxonomie complète avec nombre d'entreprises (y compris 0) |
 | GET | `/v1/cities` | Villes par nombre d'entreprises, variantes d'orthographe fusionnées |
 
+### Comptes (`/v1/auth`)
+
+Appelés par le serveur Next (jamais directement par le navigateur). La session est un jeton opaque renvoyé
+au login/inscription, que Next stocke dans un cookie httpOnly et renvoie en `Authorization: Bearer <token>`.
+
+| Méthode | Route | Description |
+| --- | --- | --- |
+| POST | `/v1/auth/register` | `{email, password, firstName, lastName}` → 201 `{user, session}` + email de vérification |
+| POST | `/v1/auth/login` | `{email, password}` → `{user, session}` ; 401 `invalid_credentials` (email inconnu ou mauvais mot de passe, indiscernables) |
+| POST | `/v1/auth/logout` | Révoque la session du Bearer |
+| GET | `/v1/auth/me` | Utilisateur de la session ; 401 `unauthenticated` |
+| POST | `/v1/auth/email/verification` | Renvoie le lien de vérification (authentifié) |
+| POST | `/v1/auth/email/verify` | `{token}` du lien reçu ; 400 `invalid_token` |
+| POST | `/v1/auth/password/forgot` | `{email}` → toujours 200 (ne révèle pas l'existence du compte) |
+| POST | `/v1/auth/password/reset` | `{token, password}` ; révoque toutes les sessions |
+
+Erreurs de saisie : 422 `validation_failed` avec `error.fields` (`{"email": "…"}`), 409 `email_taken`.
+
+- Mots de passe : argon2id (paramètres OWASP), 8 à 128 caractères.
+- Sessions (30 jours) et liens email (vérification 48 h, réinitialisation 1 h) : jetons aléatoires de 256 bits dont
+  seul le SHA-256 est stocké ; liens à usage unique, le dernier envoyé annule les précédents.
+- Limites dédiées : 10 actions sensibles/min par IP, 5 tentatives de connexion ou de réinitialisation par adresse
+  toutes les 15 min, 1 renvoi de vérification/min par compte. L'IP du visiteur est relayée par Next en `X-Client-IP`
+  (prise en compte uniquement avec le jeton interne).
+- Nettoyage horaire des sessions et liens expirés.
+
 La recherche ignore accents, casse et ligatures (`normalize_text` = `unaccent` + minuscules, côté PostgreSQL)
 et exige que chaque mot apparaisse dans le nom, le type, la ville, l'adresse ou le libellé du secteur.
 Les textes sont triés selon la collation ICU française (`fr-x-icu`), comme `localeCompare("fr")` côté front.
@@ -52,11 +79,14 @@ Les textes sont triés selon la collation ICU française (`fr-x-icu`), comme `lo
 ```
 cmd/api             serveur HTTP (arrêt propre sur SIGTERM)
 cmd/migrate         goose up|down|status|redo|version
+cmd/admin           création d'un compte administrateur
 cmd/seed            import du JSON scrapé (transaction unique, fiches vérifiées jamais écrasées)
 internal/config     variables d'environnement validées au démarrage
 internal/database   pool pgx, migrations embarquées, requêtes sqlc (queries/ → dbgen/)
 internal/company    domaine annuaire : types, repository PostgreSQL, handlers, import
-internal/httpx      enveloppe JSON, logs structurés, recovery, rate limit
+internal/auth       comptes : service (inscription, sessions, emails), handlers, limites
+internal/mail       envoi SMTP (go-mail) derrière l'interface Mailer
+internal/httpx      enveloppe JSON, lecture JSON stricte, logs structurés, recovery, rate limit
 internal/server     assemblage du routeur Gin
 internal/testutil   PostgreSQL jetable (testcontainers) pour les tests d'intégration
 ```

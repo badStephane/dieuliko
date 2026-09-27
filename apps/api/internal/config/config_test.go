@@ -38,6 +38,13 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.LogLevel != slog.LevelInfo {
 		t.Errorf("LogLevel = %v, want info", cfg.LogLevel)
 	}
+	if cfg.AppBaseURL != "http://localhost:3000" {
+		t.Errorf("AppBaseURL = %q", cfg.AppBaseURL)
+	}
+	wantSMTP := SMTPConfig{Host: "127.0.0.1", Port: 1025, TLS: "none", From: "Dieuliko <no-reply@dieuliko.local>"}
+	if cfg.SMTP != wantSMTP {
+		t.Errorf("SMTP = %+v, want Mailpit defaults %+v", cfg.SMTP, wantSMTP)
+	}
 }
 
 func TestLoadReadsEveryVariable(t *testing.T) {
@@ -52,6 +59,13 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		"INTERNAL_RATE_LIMIT_RPS":   "50",
 		"INTERNAL_RATE_LIMIT_BURST": "60",
 		"LOG_LEVEL":                 "debug",
+		"APP_BASE_URL":              "https://dieuliko.sn/",
+		"SMTP_HOST":                 "smtp-relay.example",
+		"SMTP_PORT":                 "587",
+		"SMTP_USERNAME":             "user",
+		"SMTP_PASSWORD":             "secret",
+		"SMTP_TLS":                  "starttls",
+		"MAIL_FROM":                 "Dieuliko <no-reply@dieuliko.sn>",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -78,6 +92,13 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 	if cfg.InternalToken != "0123456789abcdef0123456789abcdef" {
 		t.Errorf("InternalToken = %q", cfg.InternalToken)
 	}
+	if cfg.AppBaseURL != "https://dieuliko.sn" {
+		t.Errorf("AppBaseURL = %q, want trailing slash removed", cfg.AppBaseURL)
+	}
+	wantSMTP := SMTPConfig{Host: "smtp-relay.example", Port: 587, Username: "user", Password: "secret", TLS: "starttls", From: "Dieuliko <no-reply@dieuliko.sn>"}
+	if cfg.SMTP != wantSMTP {
+		t.Errorf("SMTP = %+v", cfg.SMTP)
+	}
 	if cfg.LogLevel != slog.LevelDebug {
 		t.Errorf("LogLevel = %v", cfg.LogLevel)
 	}
@@ -91,12 +112,14 @@ func TestLoadReportsEveryInvalidVariable(t *testing.T) {
 		"INTERNAL_API_TOKEN":        "short",
 		"INTERNAL_RATE_LIMIT_BURST": "-1",
 		"LOG_LEVEL":                 "loud",
+		"APP_BASE_URL":              "dieuliko.sn",
+		"SMTP_PORT":                 "70000",
 	}))
 	if err == nil {
 		t.Fatal("Load succeeded, want an error")
 	}
 
-	for _, want := range []string{"DATABASE_URL", "CORS_ORIGINS", "RATE_LIMIT_RPS", "RATE_LIMIT_BURST", "INTERNAL_API_TOKEN", "INTERNAL_RATE_LIMIT_BURST", "LOG_LEVEL"} {
+	for _, want := range []string{"DATABASE_URL", "CORS_ORIGINS", "RATE_LIMIT_RPS", "RATE_LIMIT_BURST", "INTERNAL_API_TOKEN", "INTERNAL_RATE_LIMIT_BURST", "LOG_LEVEL", "APP_BASE_URL", "SMTP_PORT"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
 		}

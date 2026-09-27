@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
@@ -45,6 +46,31 @@ func (emptyDirectory) CityCounts(context.Context) ([]company.CityCount, error) {
 	return []company.CityCount{}, nil
 }
 
+// noAccounts rejects every session; enough to check the auth routes are mounted.
+type noAccounts struct{}
+
+func (noAccounts) Register(context.Context, auth.RegisterInput) (auth.User, auth.Session, error) {
+	return auth.User{}, auth.Session{}, auth.ErrEmailTaken
+}
+
+func (noAccounts) Login(context.Context, string, string) (auth.User, auth.Session, error) {
+	return auth.User{}, auth.Session{}, auth.ErrInvalidCredentials
+}
+
+func (noAccounts) Logout(context.Context, string) error { return nil }
+
+func (noAccounts) Authenticate(context.Context, string) (auth.User, error) {
+	return auth.User{}, auth.ErrUnauthenticated
+}
+
+func (noAccounts) ResendVerification(context.Context, auth.User) error { return nil }
+
+func (noAccounts) VerifyEmail(context.Context, string) error { return auth.ErrInvalidToken }
+
+func (noAccounts) RequestPasswordReset(context.Context, string) error { return nil }
+
+func (noAccounts) ResetPassword(context.Context, string, string) error { return auth.ErrInvalidToken }
+
 func deps(db Pinger, burst int) Deps {
 	return Deps{
 		Config:      config.Config{CORSOrigins: []string{"https://dieuliko.sn"}, InternalToken: internalToken},
@@ -54,6 +80,8 @@ func deps(db Pinger, burst int) Deps {
 		RateLimiter: httpx.NewRateLimiter(1, burst, time.Minute),
 		// Twice the public burst: internal calls outlast public ones but stay bounded.
 		InternalLimiter: httpx.NewRateLimiter(1, 2*burst, time.Minute),
+		Accounts:        noAccounts{},
+		AuthLimiters:    auth.NewLimiters(time.Minute),
 	}
 }
 
@@ -110,6 +138,16 @@ func TestMountsDirectoryRoutesUnderV1(t *testing.T) {
 	}
 	if rec.Header().Get("X-Request-ID") == "" || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Errorf("missing global headers: %v", rec.Header())
+	}
+}
+
+func TestMountsAuthRoutesUnderV1(t *testing.T) {
+	handler := newTestServer(t, pinger{}, 10)
+
+	rec := do(handler, http.MethodGet, "/v1/auth/me", nil)
+
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), `"code":"unauthenticated"`) {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
 }
 

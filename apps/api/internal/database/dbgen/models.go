@@ -5,11 +5,13 @@
 package dbgen
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type Company struct {
-	ID                 pgtype.UUID
+	ID                 uuid.UUID
 	Slug               string
 	Name               string
 	Sector             string
@@ -32,11 +34,39 @@ type Company struct {
 	RatingCount        int32
 	Notes              *string
 	SearchText         string
-	CreatedAt          pgtype.Timestamptz
-	UpdatedAt          pgtype.Timestamptz
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type EmailToken struct {
+	TokenHash []byte
+	UserID    uuid.UUID
+	Purpose   string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UsedAt    *time.Time
 }
 
 type Sector struct {
 	Slug  string
 	Label string
+}
+
+type Session struct {
+	TokenHash []byte
+	UserID    uuid.UUID
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+type User struct {
+	ID              uuid.UUID
+	Email           string
+	PasswordHash    string
+	Role            string
+	FirstName       string
+	LastName        string
+	EmailVerifiedAt *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
