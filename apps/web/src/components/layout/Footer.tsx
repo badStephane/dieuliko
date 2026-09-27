@@ -4,7 +4,8 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { SITE } from "@/config/site";
 import { Container } from "@/components/ui/Container";
 import { NewsletterForm } from "@/components/layout/NewsletterForm";
-import { getCompanyRepository } from "@/features/companies/json-source";
+import { getCompanyRepository } from "@/features/companies/source";
+import type { SectorCount } from "@/features/companies/filters";
 import { getSectorLabel } from "@/features/companies/sectors";
 import { FOOTER_QUICK_LINKS, sectorHref, type NavLink } from "@/lib/navigation";
 
@@ -39,9 +40,19 @@ function contactRows() {
   ].filter((row) => row !== null);
 }
 
+/** The footer is on every page: a directory outage must hide its sector links, not break the page. */
+async function loadTopSectors(): Promise<readonly SectorCount[]> {
+  try {
+    const repository = await getCompanyRepository();
+    return (await repository.sectorCounts()).slice(0, FOOTER_SECTOR_COUNT);
+  } catch (error: unknown) {
+    console.error("Footer: company directory unavailable, rendering without sectors", error);
+    return [];
+  }
+}
+
 export async function Footer() {
-  const repository = await getCompanyRepository();
-  const topSectors = (await repository.sectorCounts()).slice(0, FOOTER_SECTOR_COUNT);
+  const topSectors = await loadTopSectors();
   const sectorLinks: readonly NavLink[] = topSectors.map(({ sector }) => ({
     label: getSectorLabel(sector),
     href: sectorHref(sector),
