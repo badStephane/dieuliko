@@ -16,5 +16,15 @@ services:
       timeout: 3s
       retries: 20
 
+  # Catches every email sent in development: SMTP on 1025, web UI on http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    environment:
+      # Reverse DNS of the client stalls every SMTP greeting ~8 s under Docker Desktop.
+      MP_SMTP_DISABLE_RDNS: "true"
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
 volumes:
   postgres-data:
