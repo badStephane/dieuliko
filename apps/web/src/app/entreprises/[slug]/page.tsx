@@ -9,7 +9,7 @@ import { SpontaneousApplicationCta } from "@/components/companies/SpontaneousApp
 import { PageBanner } from "@/components/layout/PageBanner";
 import { Container } from "@/components/ui/Container";
 import type { Company } from "@/features/companies/company";
-import { getCompanyRepository } from "@/features/companies/json-source";
+import { getCompanyRepository } from "@/features/companies/source";
 import { buildCompanySummary, rankSimilarCompanies } from "@/features/companies/profile";
 import { companyHref } from "@/features/companies/search-params";
 import { getSectorLabel } from "@/features/companies/sectors";

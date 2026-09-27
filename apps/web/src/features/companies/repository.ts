@@ -23,7 +23,8 @@ export interface CompanyRepository {
   allSlugs(): Promise<readonly string[]>;
 }
 
-function assertPage({ offset, limit }: PageRequest): void {
+/** Throws on offsets/limits that are not non-negative / positive integers. */
+export function assertPage({ offset, limit }: PageRequest): void {
   if (!Number.isInteger(offset) || offset < 0) throw new Error(`Invalid offset: ${offset}`);
   if (!Number.isInteger(limit) || limit < 1) throw new Error(`Invalid limit: ${limit}`);
 }

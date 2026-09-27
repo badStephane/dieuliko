@@ -5,7 +5,7 @@ import { DirectoryResults } from "@/components/companies/DirectoryResults";
 import { DirectorySearchBar } from "@/components/companies/DirectorySearchBar";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { Container } from "@/components/ui/Container";
-import { getCompanyRepository } from "@/features/companies/json-source";
+import { getCompanyRepository } from "@/features/companies/source";
 import {
   clampPage,
   directoryHref,

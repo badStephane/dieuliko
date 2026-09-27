@@ -8,7 +8,7 @@ import { HomeHero } from "@/components/home/HomeHero";
 import { CareerCtaSection } from "@/components/sections/CareerCtaSection";
 import { ProcessSection } from "@/components/sections/ProcessSection";
 import { SITE } from "@/config/site";
-import { getCompanyRepository } from "@/features/companies/json-source";
+import { getCompanyRepository } from "@/features/companies/source";
 import { getHomeData } from "@/features/home/home-data";
 
 export const metadata: Metadata = {

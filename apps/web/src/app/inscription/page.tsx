@@ -5,7 +5,7 @@ import { PageBanner } from "@/components/layout/PageBanner";
 import { ComingSoonSection, type ComingSoonItem } from "@/components/placeholder/ComingSoonSection";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import type { Company } from "@/features/companies/company";
-import { getCompanyRepository } from "@/features/companies/json-source";
+import { getCompanyRepository } from "@/features/companies/source";
 import { COMPANY_PARAM, parseCompanySlugParam } from "@/features/signup/company-param";
 import { COMPANIES_PATH } from "@/lib/navigation";
 

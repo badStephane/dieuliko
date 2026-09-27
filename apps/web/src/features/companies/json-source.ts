@@ -19,8 +19,8 @@ async function load(): Promise<CompanyRepository> {
   }
 }
 
-/** Server-side company repository (parsed once per server process). */
-export function getCompanyRepository(): Promise<CompanyRepository> {
+/** Company repository read from the scraped JSON file (parsed once per server process). */
+export function getJsonCompanyRepository(): Promise<CompanyRepository> {
   repositoryPromise ??= load();
   return repositoryPromise;
 }

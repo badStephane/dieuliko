@@ -4,7 +4,7 @@ import { AboutHero } from "@/components/about/AboutHero";
 import { CareerCtaSection } from "@/components/sections/CareerCtaSection";
 import { ProcessSection } from "@/components/sections/ProcessSection";
 import { getDirectoryStats } from "@/features/about/directory-stats";
-import { getCompanyRepository } from "@/features/companies/json-source";
+import { getCompanyRepository } from "@/features/companies/source";
 
 export const metadata: Metadata = {
   title: "À propos",

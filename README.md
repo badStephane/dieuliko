@@ -8,11 +8,13 @@ MVP v1 : annuaire des entreprises + candidature spontanée (voir le cahier des c
 | Dossier | Contenu |
 | --- | --- |
 | `apps/web` | Front Next.js 16 (App Router, Tailwind v4), UI en français |
-| `apps/api` | Backend Go + Gin + sqlc/pgx (à venir) |
-| `data/companies_scraped.json` | Base d'entreprises scrapée (source de l'annuaire en attendant PostgreSQL) |
+| `apps/api` | Backend Go + Gin + sqlc/pgx + PostgreSQL — annuaire des entreprises (voir [apps/api/README.md](apps/api/README.md)) |
+| `data/companies_scraped.json` | Base d'entreprises scrapée, importée dans PostgreSQL par `make seed` |
+| `docker-compose.yml` | Services de développement (PostgreSQL 17 sur le port 5433) |
 
-Le front lit l'annuaire via l'interface `CompanyRepository` (`apps/web/src/features/companies/repository.ts`),
-implémentée aujourd'hui sur le fichier JSON (`json-source.ts`) ; l'API Go fournira la même interface.
+Le front lit l'annuaire via l'interface `CompanyRepository` (`apps/web/src/features/companies/repository.ts`) :
+implémentation HTTP sur l'API Go (`api-source.ts`) quand `DIEULIKO_API_URL` est défini dans `apps/web/.env.local`,
+sinon lecture directe du fichier JSON (`json-source.ts`). Le choix est fait dans `source.ts`.
 
 ## Commandes (depuis la racine)
 
