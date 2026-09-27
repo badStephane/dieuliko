@@ -27,3 +27,20 @@ pnpm typecheck
 pnpm --filter @dieuliko/web test            # Vitest
 pnpm --filter @dieuliko/web test:coverage   # seuil 80 %
 ```
+
+## Environnement complet (annuaire + comptes)
+
+Les comptes candidats (inscription, connexion, vérification d'email, mot de passe oublié) passent par l'API Go.
+
+```bash
+cd apps/api && cp .env.example .env    # renseigner INTERNAL_API_TOKEN (openssl rand -hex 32)
+make db-up migrate seed                # PostgreSQL + Mailpit, schéma, 1894 entreprises
+make run                               # API sur http://127.0.0.1:8090
+cd ../web && cp .env.example .env.local  # DIEULIKO_API_URL + DIEULIKO_API_TOKEN (= INTERNAL_API_TOKEN)
+pnpm dev
+```
+
+Les emails envoyés en développement sont lisibles sur http://localhost:8025 (Mailpit).
+Pages : `/inscription`, `/connexion`, `/mot-de-passe-oublie`, `/reinitialiser-mot-de-passe`, `/verifier-email`,
+`/espace-candidat` (protégée). La session est un cookie httpOnly posé par les Server Actions de Next ; le navigateur
+n'appelle jamais l'API d'authentification directement.
