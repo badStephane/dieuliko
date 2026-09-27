@@ -28,4 +28,15 @@ export function sectorHref(sectorSlug: string): string {
 }
 
 /** Top-level sections that exist; any other path renders the 404 page. */
-export const KNOWN_SECTIONS: ReadonlySet<string> = new Set(["entreprises", "a-propos", "contact", "espace-entreprise"]);
+export const KNOWN_SECTIONS: ReadonlySet<string> = new Set([
+  "entreprises",
+  "a-propos",
+  "contact",
+  "espace-entreprise",
+  "inscription",
+  "connexion",
+  "mot-de-passe-oublie",
+  "reinitialiser-mot-de-passe",
+  "verifier-email",
+  "espace-candidat",
+]);

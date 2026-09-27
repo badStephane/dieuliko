@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { COMPANY_SPACE_CTA, KNOWN_SECTIONS, MAIN_NAV, type NavLink } from "@/lib/navigation";
+import { AccountLink } from "./AccountLink";
 
 /**
  * - "bar":  home page and 404 — full-width white bar.
@@ -62,12 +63,15 @@ function DesktopHeader({ pathname, variant }: { readonly pathname: string; reado
             );
           })}
         </nav>
-        <Link
-          href={COMPANY_SPACE_CTA.href}
-          className="inline-flex h-[57px] items-center rounded-[4px] bg-primary px-[30px] text-[18px] leading-[27px] font-semibold text-white transition-colors duration-300 hover:bg-ink"
-        >
-          {COMPANY_SPACE_CTA.label}
-        </Link>
+        <div className="flex items-center gap-8">
+          <AccountLink pathname={pathname} className="text-[18px] leading-[27px]" />
+          <Link
+            href={COMPANY_SPACE_CTA.href}
+            className="inline-flex h-[57px] items-center rounded-[4px] bg-primary px-[30px] text-[18px] leading-[27px] font-semibold text-white transition-colors duration-300 hover:bg-ink"
+          >
+            {COMPANY_SPACE_CTA.label}
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -116,6 +120,9 @@ function MobileHeader({ pathname }: { readonly pathname: string }) {
               </Link>
             </li>
           ))}
+          <li>
+            <AccountLink pathname={pathname} className="py-2.5 text-[16px] leading-6" />
+          </li>
           <li aria-hidden className="h-5" />
         </ul>
       </nav>
