@@ -1,0 +1,45 @@
+/* Looping decoration motions measured on the Framer original (home hero, process arrows, CTA cloud). */
+
+@keyframes pulse-scale {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: var(--pulse-to, 1.1);
+  }
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes nudge {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 4px 4px;
+  }
+}
+
+.pulse {
+  animation: pulse-scale var(--pulse-duration, 2.5s) ease-in-out infinite alternate;
+}
+
+.spin {
+  animation: spin 8s linear infinite;
+}
+
+.nudge {
+  animation: nudge 1.4s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .spin,
+  .nudge {
+    animation: none;
+  }
+}
