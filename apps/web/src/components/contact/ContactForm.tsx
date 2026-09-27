@@ -10,7 +10,7 @@ import {
   type ContactErrors,
   type ContactValues,
 } from "@/features/contact/contact-form";
-import { FIELD_BOX_CLASSES, FormField, fieldBorderClass } from "./FormField";
+import { FIELD_BOX_CLASSES, FormField, fieldBorderClass } from "@/components/ui/FormField";
 
 type FieldName = keyof ContactValues;
 

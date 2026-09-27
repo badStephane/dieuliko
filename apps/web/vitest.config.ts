@@ -10,7 +10,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/features/**/*.ts"],
+      include: ["src/features/**/*.ts", "src/lib/api-client.ts"],
       exclude: ["src/**/*.test.ts", "src/**/json-source.ts", "src/**/source.ts"],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },

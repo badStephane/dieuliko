@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  API_MAX_PAGE_LIMIT,
-  API_MAX_WINDOW,
-  ApiError,
-  DEFAULT_REVALIDATE_SECONDS,
-  chunkPage,
-  createApiCompanyRepository,
-} from "./api-source";
+import { ApiError, DEFAULT_REVALIDATE_SECONDS } from "@/lib/api-client";
+import { API_MAX_PAGE_LIMIT, API_MAX_WINDOW, chunkPage, createApiCompanyRepository } from "./api-source";
 import type { Company } from "./company";
 
 const BASE_URL = "http://api.test/";
