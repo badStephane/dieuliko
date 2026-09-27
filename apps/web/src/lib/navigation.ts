@@ -27,16 +27,9 @@ export function sectorHref(sectorSlug: string): string {
   return `${COMPANIES_PATH}?secteur=${encodeURIComponent(sectorSlug)}`;
 }
 
-/** Top-level sections that exist; any other path renders the 404 page. */
-export const KNOWN_SECTIONS: ReadonlySet<string> = new Set([
-  "entreprises",
-  "a-propos",
-  "contact",
-  "espace-entreprise",
-  "inscription",
-  "connexion",
-  "mot-de-passe-oublie",
-  "reinitialiser-mot-de-passe",
-  "verifier-email",
-  "espace-candidat",
-]);
+/** Index of the link matching the current page (its section or a sub-page), -1 when none does. */
+export function activeNavIndex(pathname: string, links: readonly NavLink[]): number {
+  return links.findIndex(({ href }) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`),
+  );
+}
