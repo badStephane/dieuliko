@@ -1,0 +1,11 @@
+{
+  "name": "dieuliko",
+  "private": true,
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "dev": "pnpm --filter @dieuliko/web dev",
+    "build": "pnpm --filter @dieuliko/web build",
+    "lint": "pnpm --filter @dieuliko/web lint",
+    "typecheck": "pnpm --filter @dieuliko/web exec tsc --noEmit"
+  }
+}
