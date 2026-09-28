@@ -30,7 +30,9 @@ type Config struct {
 	// AppBaseURL is the public URL of the web front, used in email links.
 	AppBaseURL string
 	SMTP       SMTPConfig
-	LogLevel   slog.Level
+	// S3 is the object storage of candidates' CVs (SeaweedFS in development, R2 in production).
+	S3       S3Config
+	LogLevel slog.Level
 }
 
 // SMTPConfig describes the outgoing mail relay (Mailpit in development).
@@ -42,6 +44,17 @@ type SMTPConfig struct {
 	// TLS is "none", "starttls" or "tls".
 	TLS  string
 	From string
+}
+
+// S3Config locates the CV bucket of an S3-compatible service. The keys have no default and are
+// only needed by the API server (storage.NewS3Store rejects them empty), not by the CLI tools.
+type S3Config struct {
+	// Endpoint is an http(s) URL: "http://127.0.0.1:8333" (SeaweedFS), "https://<account>.r2.cloudflarestorage.com".
+	Endpoint  string
+	Region    string
+	Bucket    string
+	AccessKey string
+	SecretKey string
 }
 
 const (
@@ -58,6 +71,9 @@ const (
 	defaultSMTPPort          = "1025"
 	defaultSMTPTLS           = "none"
 	defaultMailFrom          = "Dieuliko <no-reply@dieuliko.local>"
+	defaultS3Endpoint        = "http://127.0.0.1:8333"
+	defaultS3Region          = "us-east-1"
+	defaultS3Bucket          = "dieuliko-cvs"
 	// MinInternalTokenLength keeps the internal token out of brute-force reach.
 	MinInternalTokenLength = 32
 )
@@ -100,7 +116,7 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		errs = append(errs, fmt.Errorf("INTERNAL_API_TOKEN must be at least %d characters", MinInternalTokenLength))
 	}
 
-	appBaseURL, err := parseBaseURL(get("APP_BASE_URL", defaultAppBaseURL))
+	appBaseURL, err := parseHTTPURL("APP_BASE_URL", get("APP_BASE_URL", defaultAppBaseURL))
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -116,6 +132,9 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		TLS:      get("SMTP_TLS", defaultSMTPTLS),
 		From:     get("MAIL_FROM", defaultMailFrom),
 	}
+
+	s3, s3Errs := loadS3(get)
+	errs = append(errs, s3Errs...)
 
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(get("LOG_LEVEL", defaultLogLevel))); err != nil {
@@ -137,6 +156,7 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		InternalRateLimitBurst: internalBurst,
 		AppBaseURL:             appBaseURL,
 		SMTP:                   smtp,
+		S3:                     s3,
 		LogLevel:               level,
 	}, nil
 }
@@ -171,11 +191,27 @@ func splitList(raw string) []string {
 	return items
 }
 
-// parseBaseURL accepts an absolute http(s) URL and drops any trailing slash.
-func parseBaseURL(raw string) (string, error) {
+// loadS3 reads the S3_* variables.
+func loadS3(get func(string, string) string) (S3Config, []error) {
+	var errs []error
+	endpoint, err := parseHTTPURL("S3_ENDPOINT", get("S3_ENDPOINT", defaultS3Endpoint))
+	if err != nil {
+		errs = append(errs, err)
+	}
+	return S3Config{
+		Endpoint:  endpoint,
+		Region:    get("S3_REGION", defaultS3Region),
+		Bucket:    get("S3_BUCKET", defaultS3Bucket),
+		AccessKey: get("S3_ACCESS_KEY", ""),
+		SecretKey: get("S3_SECRET_KEY", ""),
+	}, errs
+}
+
+// parseHTTPURL accepts an absolute http(s) URL without query and drops any trailing slash.
+func parseHTTPURL(name, raw string) (string, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.RawQuery != "" {
-		return "", fmt.Errorf("APP_BASE_URL: %q is not an absolute http(s) URL", raw)
+		return "", fmt.Errorf("%s: %q is not an absolute http(s) URL", name, raw)
 	}
 	return strings.TrimRight(raw, "/"), nil
 }

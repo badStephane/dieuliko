@@ -26,5 +26,25 @@ services:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
 
+  # S3-compatible storage for candidates' CVs (the API only speaks S3; production uses R2).
+  # The bucket is created at startup; the keys match apps/api/.env.example.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.47
+    command: ["mini", "-dir=/data", "-bucket=dieuliko-cvs"]
+    environment:
+      AWS_ACCESS_KEY_ID: dieuliko
+      AWS_SECRET_ACCESS_KEY: dieuliko-dev-secret
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      # Any HTTP answer (403 for anonymous calls) means the S3 gateway is up.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8333/"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
 volumes:
   postgres-data:
+  seaweedfs-data:

@@ -14,8 +14,17 @@ func env(values map[string]string) func(string) (string, bool) {
 	}
 }
 
+// requiredEnv holds the variables without default; tests extend it.
+func requiredEnv(extra map[string]string) func(string) (string, bool) {
+	values := map[string]string{"DATABASE_URL": "postgres://localhost/db"}
+	for key, value := range extra {
+		values[key] = value
+	}
+	return env(values)
+}
+
 func TestLoadAppliesDefaults(t *testing.T) {
-	cfg, err := Load(env(map[string]string{"DATABASE_URL": "postgres://localhost/db"}))
+	cfg, err := Load(requiredEnv(nil))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -45,6 +54,11 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.SMTP != wantSMTP {
 		t.Errorf("SMTP = %+v, want Mailpit defaults %+v", cfg.SMTP, wantSMTP)
 	}
+	// The keys have no default: only the API needs them, and storage.NewS3Store rejects them empty.
+	wantS3 := S3Config{Endpoint: "http://127.0.0.1:8333", Region: "us-east-1", Bucket: "dieuliko-cvs"}
+	if cfg.S3 != wantS3 {
+		t.Errorf("S3 = %+v, want SeaweedFS defaults %+v", cfg.S3, wantS3)
+	}
 }
 
 func TestLoadReadsEveryVariable(t *testing.T) {
@@ -66,6 +80,11 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		"SMTP_PASSWORD":             "secret",
 		"SMTP_TLS":                  "starttls",
 		"MAIL_FROM":                 "Dieuliko <no-reply@dieuliko.sn>",
+		"S3_ENDPOINT":               "https://account.r2.cloudflarestorage.com",
+		"S3_REGION":                 "auto",
+		"S3_BUCKET":                 "cvs",
+		"S3_ACCESS_KEY":             "key",
+		"S3_SECRET_KEY":             "s3-secret",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -102,6 +121,10 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 	if cfg.LogLevel != slog.LevelDebug {
 		t.Errorf("LogLevel = %v", cfg.LogLevel)
 	}
+	wantS3 := S3Config{Endpoint: "https://account.r2.cloudflarestorage.com", Region: "auto", Bucket: "cvs", AccessKey: "key", SecretKey: "s3-secret"}
+	if cfg.S3 != wantS3 {
+		t.Errorf("S3 = %+v", cfg.S3)
+	}
 }
 
 func TestLoadReportsEveryInvalidVariable(t *testing.T) {
@@ -114,12 +137,13 @@ func TestLoadReportsEveryInvalidVariable(t *testing.T) {
 		"LOG_LEVEL":                 "loud",
 		"APP_BASE_URL":              "dieuliko.sn",
 		"SMTP_PORT":                 "70000",
+		"S3_ENDPOINT":               "127.0.0.1:8333",
 	}))
 	if err == nil {
 		t.Fatal("Load succeeded, want an error")
 	}
 
-	for _, want := range []string{"DATABASE_URL", "CORS_ORIGINS", "RATE_LIMIT_RPS", "RATE_LIMIT_BURST", "INTERNAL_API_TOKEN", "INTERNAL_RATE_LIMIT_BURST", "LOG_LEVEL", "APP_BASE_URL", "SMTP_PORT"} {
+	for _, want := range []string{"DATABASE_URL", "CORS_ORIGINS", "RATE_LIMIT_RPS", "RATE_LIMIT_BURST", "INTERNAL_API_TOKEN", "INTERNAL_RATE_LIMIT_BURST", "LOG_LEVEL", "APP_BASE_URL", "SMTP_PORT", "S3_ENDPOINT"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
 		}
@@ -127,7 +151,7 @@ func TestLoadReportsEveryInvalidVariable(t *testing.T) {
 }
 
 func TestLoadRejectsOriginsWithAPath(t *testing.T) {
-	_, err := Load(env(map[string]string{"DATABASE_URL": "postgres://db", "CORS_ORIGINS": "https://dieuliko.sn/app"}))
+	_, err := Load(requiredEnv(map[string]string{"CORS_ORIGINS": "https://dieuliko.sn/app"}))
 	if err == nil || !strings.Contains(err.Error(), "CORS_ORIGINS") {
 		t.Fatalf("err = %v, want a CORS_ORIGINS error", err)
 	}
@@ -136,7 +160,7 @@ func TestLoadRejectsOriginsWithAPath(t *testing.T) {
 func TestLoadRejectsCatchAllTrustedProxies(t *testing.T) {
 	for _, proxy := range []string{"0.0.0.0/0", "::/0"} {
 		t.Run(proxy, func(t *testing.T) {
-			_, err := Load(env(map[string]string{"DATABASE_URL": "postgres://db", "TRUSTED_PROXIES": "10.0.0.1," + proxy}))
+			_, err := Load(requiredEnv(map[string]string{"TRUSTED_PROXIES": "10.0.0.1," + proxy}))
 			if err == nil || !strings.Contains(err.Error(), "TRUSTED_PROXIES") {
 				t.Fatalf("err = %v, want a TRUSTED_PROXIES error", err)
 			}

@@ -3,8 +3,8 @@ export
 
 .PHONY: db-up db-down migrate seed admin run generate test test-short cover lint
 
-db-up: ## Start PostgreSQL (port 5433) and Mailpit (SMTP 1025, UI http://localhost:8025)
-	docker compose -f ../../docker-compose.yml up -d --wait postgres mailpit
+db-up: ## Start PostgreSQL (port 5433), Mailpit (SMTP 1025, UI http://localhost:8025) and SeaweedFS (S3 on 8333)
+	docker compose -f ../../docker-compose.yml up -d --wait postgres mailpit seaweedfs
 
 db-down:
 	docker compose -f ../../docker-compose.yml down
