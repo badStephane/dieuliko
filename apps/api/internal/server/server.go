@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
+	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
@@ -41,6 +42,10 @@ type Deps struct {
 	InternalLimiter *httpx.RateLimiter
 	Accounts        auth.Accounts
 	AuthLimiters    auth.Limiters
+	Profiles        candidate.Profiles
+	CVs             candidate.CVs
+	// UploadLimiter budgets CV uploads per candidate.
+	UploadLimiter *httpx.RateLimiter
 }
 
 // New returns the HTTP handler of the API.
@@ -79,6 +84,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	v1 := router.Group("/v1", httpx.RateLimit(deps.RateLimiter, deps.InternalLimiter, isInternal))
 	company.NewHandler(deps.Companies).Register(v1)
 	auth.NewHandler(deps.Accounts, deps.AuthLimiters, httpx.EndUserIP(isInternal)).Register(v1)
+	candidate.NewHandler(deps.Profiles, deps.CVs, deps.UploadLimiter).Register(v1, auth.RequireUser(deps.Accounts))
 
 	return router, nil
 }

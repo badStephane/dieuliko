@@ -11,6 +11,7 @@ import (
 const (
 	CodeBadRequest  = "bad_request"
 	CodeNotFound    = "not_found"
+	CodeForbidden   = "forbidden"
 	CodeNotAllowed  = "method_not_allowed"
 	CodeRateLimited = "rate_limited"
 	CodeInternal    = "internal_error"

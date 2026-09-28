@@ -10,6 +10,60 @@ import (
 	"github.com/google/uuid"
 )
 
+type CandidateCv struct {
+	UserID     uuid.UUID
+	ObjectKey  string
+	FileName   string
+	SizeBytes  int32
+	UploadedAt time.Time
+}
+
+type CandidateDesiredSector struct {
+	UserID   uuid.UUID
+	Position int16
+	Sector   string
+}
+
+type CandidateEducation struct {
+	UserID      uuid.UUID
+	Position    int16
+	Degree      string
+	School      string
+	Field       string
+	StartMonth  time.Time
+	EndMonth    *time.Time
+	Description string
+}
+
+type CandidateExperience struct {
+	UserID       uuid.UUID
+	Position     int16
+	Title        string
+	Organization string
+	City         string
+	StartMonth   time.Time
+	EndMonth     *time.Time
+	Description  string
+}
+
+type CandidateLanguage struct {
+	UserID   uuid.UUID
+	Position int16
+	Language string
+	Level    string
+}
+
+type CandidateProfile struct {
+	UserID    uuid.UUID
+	Headline  string
+	Summary   string
+	Phone     string
+	City      string
+	Skills    []string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Company struct {
 	ID                 uuid.UUID
 	Slug               string

@@ -44,6 +44,37 @@ func TestBindJSON(t *testing.T) {
 	}
 }
 
+func TestBindJSONLimitAcceptsBodiesUpToItsOwnLimit(t *testing.T) {
+	type payload struct {
+		Name string `json:"name"`
+	}
+	const limit = 2 * MaxJSONBodyBytes
+	tests := []struct {
+		name string
+		size int
+		ok   bool
+	}{
+		{"above the default limit", MaxJSONBodyBytes + 100, true},
+		{"above its own limit", limit, false},
+	}
+	gin.SetMode(gin.TestMode)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			body := `{"name":"` + strings.Repeat("a", tt.size) + `"}`
+			c.Request = httptest.NewRequest(http.MethodPut, "/", strings.NewReader(body))
+
+			var got payload
+			ok := BindJSONLimit(c, &got, limit)
+
+			if ok != tt.ok {
+				t.Fatalf("ok = %v, want %v (status %d)", ok, tt.ok, rec.Code)
+			}
+		})
+	}
+}
+
 func TestEndUserIPTrustsTheRelayedIPOnlyFromInternalCallers(t *testing.T) {
 	tests := []struct {
 		name     string

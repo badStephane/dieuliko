@@ -19,7 +19,12 @@ const ClientIPHeader = "X-Client-IP"
 // BindJSON strictly decodes the body into dst (size-limited, single object, unknown fields rejected).
 // On failure it answers 400 and returns false.
 func BindJSON(c *gin.Context, dst any) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, MaxJSONBodyBytes))
+	return BindJSONLimit(c, dst, MaxJSONBodyBytes)
+}
+
+// BindJSONLimit is BindJSON for the few payloads larger than MaxJSONBodyBytes.
+func BindJSONLimit(c *gin.Context, dst any, maxBytes int64) bool {
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
 		Fail(c, http.StatusBadRequest, CodeBadRequest, "Requête invalide.")

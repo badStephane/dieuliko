@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
+	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/database"
@@ -23,6 +24,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
 	"github.com/badStephane/dieuliko/apps/api/internal/mail"
 	"github.com/badStephane/dieuliko/apps/api/internal/server"
+	"github.com/badStephane/dieuliko/apps/api/internal/storage"
 )
 
 const (
@@ -71,6 +73,11 @@ func run() error {
 	}
 	defer accounts.Wait() // let background emails finish after the server stops
 
+	cvStore, err := storage.NewS3Store(ctx, storage.S3Config(cfg.S3))
+	if err != nil {
+		return err
+	}
+
 	// Periodic jobs stop with ctx; they are joined before the pool closes.
 	var jobs sync.WaitGroup
 	defer jobs.Wait()
@@ -79,7 +86,9 @@ func run() error {
 	limiter := httpx.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst, server.RateLimiterIdleTTL)
 	internalLimiter := httpx.NewRateLimiter(cfg.InternalRateLimitRPS, cfg.InternalRateLimitBurst, server.RateLimiterIdleTTL)
 	authLimiters := auth.NewLimiters(server.RateLimiterIdleTTL)
-	jobs.Go(func() { evictPeriodically(ctx, append([]*httpx.RateLimiter{limiter}, authLimiters.All()...)) })
+	uploadLimiter := candidate.NewUploadLimiter(server.RateLimiterIdleTTL)
+	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter}, authLimiters.All()...)
+	jobs.Go(func() { evictPeriodically(ctx, limiters) })
 
 	handler, err := server.New(server.Deps{
 		Config:          cfg,
@@ -90,6 +99,9 @@ func run() error {
 		InternalLimiter: internalLimiter,
 		Accounts:        accounts,
 		AuthLimiters:    authLimiters,
+		Profiles:        candidate.NewProfileService(pool),
+		CVs:             candidate.NewCVService(pool, cvStore, logger),
+		UploadLimiter:   uploadLimiter,
 	})
 	if err != nil {
 		return err
