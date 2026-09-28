@@ -142,6 +142,9 @@ func (s *Service) Login(ctx context.Context, email, password string) (User, Sess
 	if !match {
 		return User{}, Session{}, ErrInvalidCredentials
 	}
+	if row.SuspendedAt != nil {
+		return User{}, Session{}, ErrAccountSuspended
+	}
 
 	session, err := s.createSession(ctx, s.queries, row.ID)
 	if err != nil {
@@ -217,6 +220,9 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 	}
 	if err != nil {
 		return fmt.Errorf("password reset: find user: %w", err)
+	}
+	if row.SuspendedAt != nil {
+		return nil // a new password would not let a suspended account sign in
 	}
 	user := newUser(row.ID, row.Email, row.Role, row.FirstName, row.LastName, row.EmailVerifiedAt, row.CreatedAt)
 	s.background("send password reset email", user.ID, func(ctx context.Context) error {

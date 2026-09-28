@@ -22,6 +22,8 @@ var (
 	ErrUnauthenticated    = errors.New("missing, invalid or expired session")
 	ErrInvalidToken       = errors.New("invalid, expired or already used token")
 	ErrEmailDelivery      = errors.New("email could not be sent")
+	// ErrAccountSuspended is only returned after a correct password, so it does not reveal which accounts exist.
+	ErrAccountSuspended = errors.New("account suspended")
 )
 
 // ValidationError lists user input problems by field; messages are French and shown to users.

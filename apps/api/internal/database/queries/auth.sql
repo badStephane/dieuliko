@@ -4,7 +4,7 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING id, email::text AS email, role, first_name, last_name, email_verified_at, created_at;
 
 -- name: GetUserCredentialsByEmail :one
-SELECT id, email::text AS email, role, first_name, last_name, email_verified_at, created_at, password_hash
+SELECT id, email::text AS email, role, first_name, last_name, email_verified_at, created_at, password_hash, suspended_at
 FROM users
 WHERE email = sqlc.arg(email)::citext;
 
@@ -14,13 +14,13 @@ INSERT INTO sessions (token_hash, user_id, expires_at)
 VALUES ($1, $2, now() + make_interval(secs => sqlc.arg(ttl_seconds)::float8))
 RETURNING expires_at;
 
--- Expired sessions never authenticate, even before the cleanup job deletes them.
+-- Expired sessions, and those of suspended accounts, never authenticate (even before they are deleted).
 -- name: GetSessionUser :one
 SELECT u.id, u.email::text AS email, u.role, u.first_name, u.last_name, u.email_verified_at, u.created_at,
        s.expires_at AS session_expires_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1 AND s.expires_at > now();
+WHERE s.token_hash = $1 AND s.expires_at > now() AND u.suspended_at IS NULL;
 
 -- name: DeleteSession :exec
 DELETE FROM sessions WHERE token_hash = $1;

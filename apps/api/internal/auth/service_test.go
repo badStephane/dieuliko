@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/badStephane/dieuliko/apps/api/internal/mail"
@@ -450,5 +451,47 @@ func TestCreateAdmin(t *testing.T) {
 	service.Wait()
 	if len(mailer.messages()) != 0 {
 		t.Error("creating an admin must not send email")
+	}
+}
+
+// suspend marks the account suspended, as the back-office does.
+func suspend(t *testing.T, userID uuid.UUID) {
+	t.Helper()
+	if _, err := testPool.Exec(context.Background(), "UPDATE users SET suspended_at = now() WHERE id = $1", userID); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+}
+
+func TestSuspendedAccountsCannotSignIn(t *testing.T) {
+	service, _ := newTestService(t)
+	ctx := context.Background()
+	user, session := register(t, service)
+	suspend(t, user.ID)
+
+	if _, err := service.Authenticate(ctx, session.Token); !errors.Is(err, ErrUnauthenticated) {
+		t.Errorf("Authenticate with a live session = %v, want ErrUnauthenticated", err)
+	}
+	if _, _, err := service.Login(ctx, "awa.diop@example.sn", "correct horse"); !errors.Is(err, ErrAccountSuspended) {
+		t.Errorf("Login with the right password = %v, want ErrAccountSuspended", err)
+	}
+	// A wrong password must not reveal that the account exists and is suspended.
+	if _, _, err := service.Login(ctx, "awa.diop@example.sn", "wrong password"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("Login with a wrong password = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestSuspendedAccountsGetNoPasswordResetLink(t *testing.T) {
+	service, mailer := newTestService(t)
+	user, _ := register(t, service)
+	service.Wait()
+	before := len(mailer.messages())
+	suspend(t, user.ID)
+
+	if err := service.RequestPasswordReset(context.Background(), "awa.diop@example.sn"); err != nil {
+		t.Fatalf("RequestPasswordReset = %v, want nil", err)
+	}
+	service.Wait()
+	if sent := len(mailer.messages()) - before; sent != 0 {
+		t.Errorf("sent %d emails, want none", sent)
 	}
 }

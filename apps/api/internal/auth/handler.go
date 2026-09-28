@@ -19,6 +19,7 @@ const (
 	CodeUnauthenticated    = "unauthenticated"
 	CodeInvalidToken       = "invalid_token"
 	CodeEmailDelivery      = "email_delivery_failed"
+	CodeAccountSuspended   = "account_suspended"
 )
 
 const userContextKey = "auth.user"
@@ -285,6 +286,8 @@ func writeError(c *gin.Context, err error) {
 			map[string]string{"email": "Un compte existe déjà avec cette adresse email."})
 	case errors.Is(err, ErrInvalidCredentials):
 		httpx.Fail(c, http.StatusUnauthorized, CodeInvalidCredentials, "Email ou mot de passe incorrect.")
+	case errors.Is(err, ErrAccountSuspended):
+		httpx.Fail(c, http.StatusForbidden, CodeAccountSuspended, "Ce compte est suspendu. Contactez-nous pour en savoir plus.")
 	case errors.Is(err, ErrUnauthenticated):
 		httpx.Fail(c, http.StatusUnauthorized, CodeUnauthenticated, "Votre session a expiré. Reconnectez-vous.")
 	case errors.Is(err, ErrInvalidToken):

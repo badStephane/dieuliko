@@ -165,7 +165,7 @@ SELECT u.id, u.email::text AS email, u.role, u.first_name, u.last_name, u.email_
        s.expires_at AS session_expires_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1 AND s.expires_at > now()
+WHERE s.token_hash = $1 AND s.expires_at > now() AND u.suspended_at IS NULL
 `
 
 type GetSessionUserRow struct {
@@ -179,7 +179,7 @@ type GetSessionUserRow struct {
 	SessionExpiresAt time.Time
 }
 
-// Expired sessions never authenticate, even before the cleanup job deletes them.
+// Expired sessions, and those of suspended accounts, never authenticate (even before they are deleted).
 func (q *Queries) GetSessionUser(ctx context.Context, tokenHash []byte) (GetSessionUserRow, error) {
 	row := q.db.QueryRow(ctx, getSessionUser, tokenHash)
 	var i GetSessionUserRow
@@ -228,7 +228,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 }
 
 const getUserCredentialsByEmail = `-- name: GetUserCredentialsByEmail :one
-SELECT id, email::text AS email, role, first_name, last_name, email_verified_at, created_at, password_hash
+SELECT id, email::text AS email, role, first_name, last_name, email_verified_at, created_at, password_hash, suspended_at
 FROM users
 WHERE email = $1::citext
 `
@@ -242,6 +242,7 @@ type GetUserCredentialsByEmailRow struct {
 	EmailVerifiedAt *time.Time
 	CreatedAt       time.Time
 	PasswordHash    string
+	SuspendedAt     *time.Time
 }
 
 func (q *Queries) GetUserCredentialsByEmail(ctx context.Context, email string) (GetUserCredentialsByEmailRow, error) {
@@ -256,6 +257,7 @@ func (q *Queries) GetUserCredentialsByEmail(ctx context.Context, email string) (
 		&i.EmailVerifiedAt,
 		&i.CreatedAt,
 		&i.PasswordHash,
+		&i.SuspendedAt,
 	)
 	return i, err
 }
