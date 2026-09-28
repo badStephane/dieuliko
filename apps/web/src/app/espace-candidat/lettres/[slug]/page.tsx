@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { ArchivedLetter } from "@/components/candidate/ArchivedLetter";
 import { LetterEditor } from "@/components/candidate/LetterEditor";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { Container } from "@/components/ui/Container";
 import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
+import type { Application, Letter } from "@/features/candidate/candidate-api";
 import { letterPath } from "@/features/candidate/paths";
 import { loadLetterPage } from "@/features/candidate/server";
 import { companyHref } from "@/features/companies/search-params";
@@ -21,12 +23,38 @@ export const metadata: Metadata = {
 const SLUG_PATTERN = /^[a-z0-9-]{1,120}$/;
 const BACK_LINK = "inline-flex min-h-11 items-center gap-2 text-[16px] font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary";
 
+function HiddenCompanyLetter({ letter, application }: { readonly letter: Letter; readonly application: Application | null }) {
+  return (
+    <>
+      <PageBanner title={`Lettre pour ${letter.companyName}`} subtitle={letter.companyCity} className="[&_h1]:break-words" />
+      <section className="bg-surface/60 pt-10 pb-16 tab:pt-14 desk:pt-20 desk:pb-24">
+        <Container>
+          <div className="mx-auto flex max-w-[860px] flex-col gap-6">
+            <nav aria-label="Retour">
+              <Link href={CANDIDATE_HOME_PATH} className={BACK_LINK}>
+                <ArrowLeft aria-hidden className="size-5" />
+                Mon espace candidat
+              </Link>
+            </nav>
+            <ArchivedLetter letter={letter} application={application} />
+          </div>
+        </Container>
+      </section>
+    </>
+  );
+}
+
 export default async function LetterPage({ params }: PageProps<"/espace-candidat/lettres/[slug]">) {
   const { slug } = await params;
   const user = await requireUser(letterPath(slug));
-  const company = SLUG_PATTERN.test(slug) ? await (await getCompanyRepository()).findBySlug(slug) : null;
-  if (!company) notFound();
-  const page = user.role === "candidate" ? await loadLetterPage(slug) : null;
+  const isValidSlug = SLUG_PATTERN.test(slug);
+  const company = isValidSlug ? await (await getCompanyRepository()).findBySlug(slug) : null;
+  const page = isValidSlug && user.role === "candidate" ? await loadLetterPage(slug) : null;
+  if (!company) {
+    // Taken out of the directory (back-office): the candidate keeps read access to a letter they already wrote.
+    if (!page?.letter) notFound();
+    return <HiddenCompanyLetter letter={page.letter} application={page.application} />;
+  }
 
   return (
     <>
