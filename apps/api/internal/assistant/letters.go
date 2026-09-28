@@ -100,7 +100,7 @@ func (s *LetterService) Generate(ctx context.Context, author Author, slug string
 	if err != nil {
 		return Letter{}, fmt.Errorf("generate letter: load profile: %w", err)
 	}
-	if !hasContent(profile) {
+	if !profile.HasContent() {
 		return Letter{}, fieldError("profile", "Complétez d’abord votre profil (titre, expériences ou compétences) : la lettre s’appuie dessus.")
 	}
 	sector, err := s.sectorLabel(ctx, target.Sector)

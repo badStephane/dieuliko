@@ -51,6 +51,12 @@ type Profile struct {
 	UpdatedAt *time.Time `json:"updatedAt"`
 }
 
+// HasContent reports whether the profile says anything about the candidate's career: what the assistant writes
+// from and what an application needs. Contact details alone do not count.
+func (p Profile) HasContent() bool {
+	return p.Headline != "" || len(p.Experiences) > 0 || len(p.Educations) > 0 || len(p.Skills) > 0
+}
+
 // Language is a spoken language and the candidate's level in it.
 type Language struct {
 	Language string `json:"language"`

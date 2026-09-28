@@ -83,7 +83,7 @@ func (s *Service) Rewrite(ctx context.Context, userID uuid.UUID, input RewriteIn
 	var instruction string
 	switch input.Kind {
 	case KindSummary:
-		if input.Text == "" && !hasContent(profile) {
+		if input.Text == "" && !profile.HasContent() {
 			return "", fieldError("text", "Complétez d’abord votre profil (titre, expériences ou compétences), ou écrivez un premier jet.")
 		}
 		instruction = summaryInstruction(input.Text, profile)
@@ -125,10 +125,6 @@ func isForbidden(r rune) bool {
 
 func fieldError(field, message string) error {
 	return &ValidationError{Fields: map[string]string{field: message}}
-}
-
-func hasContent(profile candidate.Profile) bool {
-	return profile.Headline != "" || len(profile.Experiences) > 0 || len(profile.Educations) > 0 || len(profile.Skills) > 0
 }
 
 func summaryInstruction(text string, profile candidate.Profile) string {
