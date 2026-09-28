@@ -234,3 +234,25 @@ func TestListIsEmptyNotNil(t *testing.T) {
 		t.Errorf("letters = %#v, %v", letters, err)
 	}
 }
+
+func TestAHiddenCompanyTakesNoNewLetterButKeepsTheSavedOnes(t *testing.T) {
+	requireDB(t)
+	seedCompany(t)
+	ctx := context.Background()
+	service := newLetterService(&fakeWriter{answer: draft}, filledProfile)
+	author := newAuthor(t)
+	if _, err := service.Save(ctx, author.ID, companySlug, draft); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if _, err := testPool.Exec(ctx, "UPDATE companies SET hidden_at = now() WHERE slug = $1", companySlug); err != nil {
+		t.Fatalf("hide: %v", err)
+	}
+	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), "UPDATE companies SET hidden_at = NULL WHERE slug = $1", companySlug) })
+
+	if _, err := service.Save(ctx, newAuthor(t).ID, companySlug, draft); !errors.Is(err, company.ErrNotFound) {
+		t.Errorf("save for a hidden company = %v, want company.ErrNotFound", err)
+	}
+	if letter, err := service.Get(ctx, author.ID, companySlug); err != nil || letter.Content != draft {
+		t.Errorf("saved letter = %+v, %v; want it still readable", letter, err)
+	}
+}

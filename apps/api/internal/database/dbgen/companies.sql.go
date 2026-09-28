@@ -12,7 +12,8 @@ import (
 const countCompanies = `-- name: CountCompanies :one
 SELECT count(*)
 FROM companies
-WHERE ($1::text IS NULL OR sector = $1)
+WHERE hidden_at IS NULL
+  AND ($1::text IS NULL OR sector = $1)
   AND ($2::text IS NULL OR city_key = normalize_text($2))
   AND search_text LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest($3::text[]) AS word)
@@ -35,7 +36,7 @@ const getCompanyBySlug = `-- name: GetCompanyBySlug :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address,
        size, logo_url, social_links, accepts_spontaneous, verified, rating, rating_count
 FROM companies
-WHERE slug = $1
+WHERE slug = $1 AND hidden_at IS NULL
 `
 
 type GetCompanyBySlugRow struct {
@@ -90,6 +91,7 @@ FROM (
            city,
            (sum(count(*)) OVER (PARTITION BY city_key))::bigint AS company_count
     FROM companies
+    WHERE hidden_at IS NULL
     GROUP BY city_key, city
     ORDER BY city_key, count(*) DESC, city
 ) AS merged
@@ -124,7 +126,7 @@ func (q *Queries) ListCityCounts(ctx context.Context) ([]ListCityCountsRow, erro
 }
 
 const listCompanySlugs = `-- name: ListCompanySlugs :many
-SELECT slug FROM companies ORDER BY slug
+SELECT slug FROM companies WHERE hidden_at IS NULL ORDER BY slug
 `
 
 func (q *Queries) ListCompanySlugs(ctx context.Context) ([]string, error) {
@@ -150,7 +152,7 @@ func (q *Queries) ListCompanySlugs(ctx context.Context) ([]string, error) {
 const listSectorCounts = `-- name: ListSectorCounts :many
 SELECT s.slug, s.label, count(c.id) AS company_count
 FROM sectors s
-LEFT JOIN companies c ON c.sector = s.slug
+LEFT JOIN companies c ON c.sector = s.slug AND c.hidden_at IS NULL
 GROUP BY s.slug
 ORDER BY company_count DESC, s.label
 `
@@ -185,7 +187,8 @@ const searchCompanies = `-- name: SearchCompanies :many
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address,
        size, logo_url, social_links, accepts_spontaneous, verified, rating, rating_count
 FROM companies
-WHERE ($1::text IS NULL OR sector = $1)
+WHERE hidden_at IS NULL
+  AND ($1::text IS NULL OR sector = $1)
   AND ($2::text IS NULL OR city_key = normalize_text($2))
   AND search_text LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest($3::text[]) AS word)
@@ -223,6 +226,7 @@ type SearchCompaniesRow struct {
 
 // Filters shared with CountCompanies (keep them identical): sector slug, city (compared on
 // normalize_text) and words that must all appear in search_text, LIKE metacharacters already escaped.
+// Hidden companies (back-office) are left out of every public query.
 func (q *Queries) SearchCompanies(ctx context.Context, arg SearchCompaniesParams) ([]SearchCompaniesRow, error) {
 	rows, err := q.db.Query(ctx, searchCompanies,
 		arg.Sector,
@@ -293,7 +297,7 @@ ON CONFLICT (slug) DO UPDATE SET
     rating = EXCLUDED.rating,
     rating_count = EXCLUDED.rating_count,
     notes = EXCLUDED.notes
-WHERE NOT companies.verified
+WHERE NOT companies.verified AND companies.curated_at IS NULL
 `
 
 type UpsertScrapedCompanyParams struct {
@@ -319,7 +323,7 @@ type UpsertScrapedCompanyParams struct {
 	Notes              *string
 }
 
-// Verified (claimed) companies are never overwritten by a re-import of scraped data.
+// Verified (claimed) and curated (edited in the back-office) companies are never overwritten by a re-import.
 func (q *Queries) UpsertScrapedCompany(ctx context.Context, arg UpsertScrapedCompanyParams) error {
 	_, err := q.db.Exec(ctx, upsertScrapedCompany,
 		arg.Slug,

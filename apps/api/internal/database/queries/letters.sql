@@ -1,5 +1,6 @@
+-- Only visible companies take new letters and applications; reading existing ones joins without this filter.
 -- name: GetCompanyIDBySlug :one
-SELECT id FROM companies WHERE slug = $1;
+SELECT id FROM companies WHERE slug = $1 AND hidden_at IS NULL;
 
 -- name: GetLetter :one
 SELECT c.slug, c.name, c.city, l.content, l.updated_at

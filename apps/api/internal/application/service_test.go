@@ -415,3 +415,26 @@ func TestApplyAcceptsTheLargestProfileTheCandidateCanSave(t *testing.T) {
 		t.Fatalf("apply with a full profile: %v", err)
 	}
 }
+
+func TestAHiddenCompanyTakesNoNewApplicationButKeepsTheSentOnes(t *testing.T) {
+	requireDB(t)
+	ctx := context.Background()
+	const slug = "entreprise-masquee"
+	seedCompany(t, slug)
+	f := newFixture()
+	applicant := newApplicant(t)
+	sent, err := f.service.Apply(ctx, applicant, slug)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if _, err := testPool.Exec(ctx, "UPDATE companies SET hidden_at = now() WHERE slug = $1", slug); err != nil {
+		t.Fatalf("hide: %v", err)
+	}
+
+	if _, err := f.service.Apply(ctx, newApplicant(t), slug); !errors.Is(err, company.ErrNotFound) {
+		t.Errorf("apply to a hidden company = %v, want company.ErrNotFound", err)
+	}
+	if got, err := f.service.Get(ctx, applicant.ID, sent.ID); err != nil || got.Snapshot == nil {
+		t.Errorf("sent application = %+v, %v; want it still readable", got, err)
+	}
+}

@@ -8,7 +8,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type AdminAudit struct {
+	ID            int64
+	AdminID       pgtype.UUID
+	Action        string
+	TargetType    string
+	TargetID      string
+	ChangedFields []string
+	CreatedAt     time.Time
+}
 
 type Application struct {
 	ID          uuid.UUID
@@ -107,6 +118,8 @@ type Company struct {
 	SearchText         string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	HiddenAt           *time.Time
+	CuratedAt          *time.Time
 }
 
 type CoverLetter struct {
@@ -148,4 +161,5 @@ type User struct {
 	EmailVerifiedAt *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	SuspendedAt     *time.Time
 }

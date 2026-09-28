@@ -32,9 +32,10 @@ func (q *Queries) DeleteLetter(ctx context.Context, arg DeleteLetterParams) (int
 }
 
 const getCompanyIDBySlug = `-- name: GetCompanyIDBySlug :one
-SELECT id FROM companies WHERE slug = $1
+SELECT id FROM companies WHERE slug = $1 AND hidden_at IS NULL
 `
 
+// Only visible companies take new letters and applications; reading existing ones joins without this filter.
 func (q *Queries) GetCompanyIDBySlug(ctx context.Context, slug string) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, getCompanyIDBySlug, slug)
 	var id uuid.UUID

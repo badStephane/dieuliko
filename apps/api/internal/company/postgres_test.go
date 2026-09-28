@@ -325,3 +325,59 @@ func TestImportRollsBackEverythingOnError(t *testing.T) {
 		t.Errorf("slugs = %v, want nothing imported", slugs)
 	}
 }
+
+// hide takes a listing out of the public directory, as the back-office does.
+func hide(t *testing.T, slug string) {
+	t.Helper()
+	if _, err := testPool.Exec(context.Background(), "UPDATE companies SET hidden_at = now() WHERE slug = $1", slug); err != nil {
+		t.Fatalf("hide %s: %v", slug, err)
+	}
+}
+
+func TestHiddenCompaniesLeaveThePublicDirectory(t *testing.T) {
+	repo := seed(t,
+		record("visible", map[string]any{"sector": "sante", "city": "Dakar"}),
+		record("masquee", map[string]any{"sector": "sante", "city": "Thiès"}),
+	)
+	hide(t, "masquee")
+	ctx := context.Background()
+
+	if got := search(t, repo, Filters{}); !slices.Equal(got, []string{"visible"}) {
+		t.Errorf("search = %v, want only the visible company", got)
+	}
+	if _, err := repo.FindBySlug(ctx, "masquee"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("FindBySlug(hidden) err = %v, want ErrNotFound", err)
+	}
+	if slugs, err := repo.Slugs(ctx); err != nil || !slices.Equal(slugs, []string{"visible"}) {
+		t.Errorf("Slugs = %v, %v", slugs, err)
+	}
+	sectors, err := repo.SectorCounts(ctx)
+	if err != nil || sectors[0] != (SectorCount{Slug: "sante", Label: "Santé", Count: 1}) {
+		t.Errorf("first sector = %+v, %v; want the hidden company uncounted", sectors[0], err)
+	}
+	cities, err := repo.CityCounts(ctx)
+	if err != nil || len(cities) != 1 || cities[0].City != "Dakar" {
+		t.Errorf("cities = %+v, %v; want only Dakar", cities, err)
+	}
+}
+
+func TestImportNeverOverwritesCompaniesEditedInTheBackOffice(t *testing.T) {
+	repo := seed(t, record("corrigee", map[string]any{"name": "Nom scrapé"}))
+	ctx := context.Background()
+	if _, err := testPool.Exec(ctx, "UPDATE companies SET name = 'Nom corrigé', curated_at = now() WHERE slug = 'corrigee'"); err != nil {
+		t.Fatalf("curate: %v", err)
+	}
+	params, err := ParseScraped(encode(t, record("corrigee", map[string]any{"name": "Nom scrapé"})))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if err := ImportScraped(ctx, testPool, params); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	company, err := repo.FindBySlug(ctx, "corrigee")
+	if err != nil || company.Name != "Nom corrigé" {
+		t.Fatalf("company = %+v, err %v; want the back-office edit kept", company, err)
+	}
+}
