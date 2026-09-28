@@ -46,7 +46,8 @@ func seed(t *testing.T, records ...map[string]any) *PostgresRepository {
 		t.Skip("integration test (needs Docker); run without -short")
 	}
 	ctx := context.Background()
-	if _, err := testPool.Exec(ctx, "TRUNCATE companies"); err != nil {
+	// CASCADE also empties tables pointing at companies (cover letters), which only exist in other tests.
+	if _, err := testPool.Exec(ctx, "TRUNCATE companies CASCADE"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	params, err := ParseScraped(encode(t, records...))

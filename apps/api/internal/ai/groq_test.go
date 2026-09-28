@@ -127,6 +127,23 @@ func TestWriteStaysUnderTheGlobalBudgetWithoutCallingTheProvider(t *testing.T) {
 	}
 }
 
+func TestWriteAllowsAFewCallsAtOnceWithinTheBudget(t *testing.T) {
+	server, calls := fakeGroq(t, http.StatusOK, completion)
+	cfg := testConfig(server.URL)
+	cfg.RequestsPerMinute = 25
+	writer := NewWriter(cfg)
+
+	for i := range 5 {
+		if _, err := writer.Write(context.Background(), request); err != nil {
+			t.Fatalf("call %d refused: %v (two candidates clicking at once must both be served)", i+1, err)
+		}
+	}
+
+	if len(*calls) != 5 {
+		t.Errorf("provider called %d times, want 5", len(*calls))
+	}
+}
+
 func TestWriterWithoutKeyIsUnavailable(t *testing.T) {
 	cfg := testConfig("http://unused.test")
 	cfg.APIKey = ""

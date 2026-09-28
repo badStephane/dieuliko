@@ -92,6 +92,14 @@ type Company struct {
 	UpdatedAt          time.Time
 }
 
+type CoverLetter struct {
+	UserID    uuid.UUID
+	CompanyID uuid.UUID
+	Content   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type EmailToken struct {
 	TokenHash []byte
 	UserID    uuid.UUID

@@ -38,6 +38,10 @@ const statusCapacityExceeded = 498
 // maxErrorBody bounds how much of a failed response is read for the logs.
 const maxErrorBody = 4 << 10
 
+// burstShare is the part of the per-minute budget that may be spent at once, so candidates clicking
+// together are all served while the sustained rate stays under the provider's limit.
+const burstShare = 5
+
 // Message is one turn of the conversation sent to the model.
 type Message struct {
 	Role    string `json:"role"`
@@ -71,10 +75,11 @@ func NewWriter(cfg Config) Writer {
 	if cfg.APIKey == "" {
 		return disabled{}
 	}
+	perMinute := max(cfg.RequestsPerMinute, 1)
 	return &groq{
 		cfg:     cfg,
 		client:  &http.Client{Timeout: cfg.Timeout},
-		limiter: rate.NewLimiter(rate.Every(time.Minute/time.Duration(max(cfg.RequestsPerMinute, 1))), 1),
+		limiter: rate.NewLimiter(rate.Every(time.Minute/time.Duration(perMinute)), max(perMinute/burstShare, 1)),
 	}
 }
 

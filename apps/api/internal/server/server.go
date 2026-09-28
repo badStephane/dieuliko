@@ -48,6 +48,7 @@ type Deps struct {
 	// UploadLimiter budgets CV uploads per candidate.
 	UploadLimiter *httpx.RateLimiter
 	Assistant     assistant.Rewriter
+	Letters       assistant.Letters
 	// AssistLimiter budgets writing-assistant requests per candidate.
 	AssistLimiter *httpx.RateLimiter
 }
@@ -89,7 +90,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	company.NewHandler(deps.Companies).Register(v1)
 	auth.NewHandler(deps.Accounts, deps.AuthLimiters, httpx.EndUserIP(isInternal)).Register(v1)
 	candidate.NewHandler(deps.Profiles, deps.CVs, deps.UploadLimiter).Register(v1, auth.RequireUser(deps.Accounts))
-	assistant.NewHandler(deps.Assistant, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)
+	assistant.NewHandler(deps.Assistant, deps.Letters, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)
 
 	return router, nil
 }

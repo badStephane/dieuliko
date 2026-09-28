@@ -66,6 +66,11 @@ Session obligatoire (Bearer), réservé au rôle `candidate` (403 `forbidden` si
 | PUT | `/v1/me/cv` | `multipart/form-data`, champ `file` : PDF ≤ 5 Mo, remplace le CV précédent |
 | GET | `/v1/me/cv/file` | Télécharge le PDF (`attachment`, `no-store`) ; 404 `no_cv` |
 | DELETE | `/v1/me/cv` | Supprime le CV (idempotent) |
+| GET | `/v1/me/letters` | Lettres de motivation du candidat (entreprise, contenu, `updatedAt`), plus récentes d’abord |
+| GET | `/v1/me/letters/{slug}` | Lettre pour une entreprise ; 404 `no_letter` |
+| POST | `/v1/me/letters/{slug}/generate` | Rédige la lettre avec l’assistant (profil enregistré + fiche entreprise) et l’enregistre ; 422 si le profil est vide |
+| PUT | `/v1/me/letters/{slug}` | `{content}` (5 000 caractères max) : enregistre la version modifiée |
+| DELETE | `/v1/me/letters/{slug}` | Supprime la lettre (idempotent) |
 | POST | `/v1/me/assist/rewrite` | `{kind: "summary"\|"experience", text, title, organization}` → `{text}` : proposition de l’assistant |
 
 Profil : `headline`, `summary`, `phone`, `city`, `desiredSectors` (slugs de `/v1/sectors`, 5 max), `skills` (30 max),

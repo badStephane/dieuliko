@@ -82,6 +82,7 @@ func run() error {
 		return err
 	}
 	profiles := candidate.NewProfileService(pool)
+	companies := company.NewPostgresRepository(dbgen.New(pool))
 	writer := ai.NewWriter(ai.Config{
 		APIKey: cfg.AI.APIKey, Model: cfg.AI.Model, BaseURL: cfg.AI.BaseURL,
 		RequestsPerMinute: cfg.AI.RequestsPerMinute, Timeout: aiTimeout,
@@ -107,7 +108,7 @@ func run() error {
 		Config:          cfg,
 		Logger:          logger,
 		DB:              pool,
-		Companies:       company.NewPostgresRepository(dbgen.New(pool)),
+		Companies:       companies,
 		RateLimiter:     limiter,
 		InternalLimiter: internalLimiter,
 		Accounts:        accounts,
@@ -116,6 +117,7 @@ func run() error {
 		CVs:             candidate.NewCVService(pool, cvStore, logger),
 		UploadLimiter:   uploadLimiter,
 		Assistant:       assistant.NewService(writer, profiles),
+		Letters:         assistant.NewLetterService(pool, writer, profiles, companies),
 		AssistLimiter:   assistLimiter,
 	})
 	if err != nil {
