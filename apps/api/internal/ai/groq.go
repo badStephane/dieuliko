@@ -114,20 +114,34 @@ type chatRequest struct {
 
 type chatResponse struct {
 	Choices []struct {
-		Message struct {
+		FinishReason string `json:"finish_reason"`
+		Message      struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
 }
 
+// errReasoningRanOut marks an empty answer cut at the token limit: the hidden reasoning used the whole budget.
+var errReasoningRanOut = fmt.Errorf("%w: reasoning used the whole token budget", ErrEmptyAnswer)
+
+// Write asks once at the requested effort. When reasoning above "low" runs away and leaves no answer (it happens
+// about once in three letters at "medium" on Groq), it asks once more at "low", which has always answered.
 func (g *groq) Write(ctx context.Context, req Request) (string, error) {
-	if !g.limiter.Allow() {
-		return "", fmt.Errorf("%w: global budget spent", ErrBusy)
-	}
-	// Reasoning stays hidden (only the final text is returned), and short unless the caller needs more care.
 	effort := req.ReasoningEffort
 	if effort == "" {
 		effort = ReasoningLow
+	}
+	answer, err := g.attempt(ctx, req, effort)
+	if !errors.Is(err, errReasoningRanOut) || effort == ReasoningLow {
+		return answer, err
+	}
+	return g.attempt(ctx, req, ReasoningLow)
+}
+
+// attempt makes one call, within the global budget; reasoning stays hidden (only the final text is returned).
+func (g *groq) attempt(ctx context.Context, req Request, effort string) (string, error) {
+	if !g.limiter.Allow() {
+		return "", fmt.Errorf("%w: global budget spent", ErrBusy)
 	}
 	payload, err := json.Marshal(chatRequest{
 		Model: g.cfg.Model, Messages: req.Messages, Temperature: req.Temperature, MaxTokens: req.MaxTokens,
@@ -155,10 +169,18 @@ func (g *groq) Write(ctx context.Context, req Request) (string, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return "", fmt.Errorf("ai: decode response: %w", err)
 	}
-	if len(body.Choices) == 0 || strings.TrimSpace(body.Choices[0].Message.Content) == "" {
+	if len(body.Choices) == 0 {
 		return "", ErrEmptyAnswer
 	}
-	return strings.TrimSpace(body.Choices[0].Message.Content), nil
+	choice := body.Choices[0]
+	content := strings.TrimSpace(choice.Message.Content)
+	switch {
+	case content == "" && choice.FinishReason == "length":
+		return "", errReasoningRanOut
+	case content == "":
+		return "", ErrEmptyAnswer
+	}
+	return content, nil
 }
 
 // failure maps a non-200 answer to an error; the provider's message is kept for the logs only.

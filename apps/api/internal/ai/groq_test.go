@@ -85,6 +85,43 @@ func TestWriteUsesTheRequestedReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestWriteRetriesWithLessReasoningWhenReasoningUsedTheWholeBudget(t *testing.T) {
+	var efforts []any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		efforts = append(efforts, payload["reasoning_effort"])
+		if len(efforts) == 1 {
+			// Seen on Groq: medium reasoning ran away and left no room for the answer.
+			_, _ = w.Write([]byte(`{"choices":[{"finish_reason":"length","message":{"content":""}}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(completion))
+	}))
+	t.Cleanup(server.Close)
+	careful := request
+	careful.ReasoningEffort = ReasoningMedium
+
+	got, err := NewWriter(testConfig(server.URL)).Write(context.Background(), careful)
+
+	if err != nil || got != "Une lettre soignée." {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if len(efforts) != 2 || efforts[0] != "medium" || efforts[1] != "low" {
+		t.Errorf("efforts = %v, want one retry at low", efforts)
+	}
+}
+
+func TestWriteDoesNotRetryAnEmptyAnswerAtLowReasoning(t *testing.T) {
+	server, calls := fakeGroq(t, http.StatusOK, `{"choices":[{"finish_reason":"length","message":{"content":""}}]}`)
+
+	_, err := NewWriter(testConfig(server.URL)).Write(context.Background(), request)
+
+	if !errors.Is(err, ErrEmptyAnswer) || len(*calls) != 1 {
+		t.Errorf("err = %v after %d calls, want ErrEmptyAnswer after one", err, len(*calls))
+	}
+}
+
 func TestWriteMapsProviderFailures(t *testing.T) {
 	tests := []struct {
 		name   string
