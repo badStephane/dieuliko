@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
-import { FileText, MailWarning, Send, Sparkles } from "lucide-react";
+import type { ReactNode } from "react";
+import { CloudOff, MailWarning, Send, Sparkles } from "lucide-react";
 import { LogOutButton, ResendVerificationForm } from "@/components/auth/AuthForms";
+import { CvCard } from "@/components/candidate/CvCard";
+import { ProfileCard } from "@/components/candidate/ProfileCard";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { ComingSoonSection, type ComingSoonItem } from "@/components/placeholder/ComingSoonSection";
 import { ButtonLink } from "@/components/ui/ButtonLink";
@@ -8,6 +11,7 @@ import { Container } from "@/components/ui/Container";
 import type { User } from "@/features/auth/auth-api";
 import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
+import { loadCandidateSpace } from "@/features/candidate/server";
 import { COMPANIES_PATH } from "@/lib/navigation";
 
 export const metadata: Metadata = {
@@ -16,11 +20,6 @@ export const metadata: Metadata = {
 };
 
 const UPCOMING: readonly ComingSoonItem[] = [
-  {
-    title: "Votre profil",
-    description: "Renseignez une fois votre parcours, vos compétences et le poste que vous recherchez.",
-    icon: FileText,
-  },
   {
     title: "CV et lettre avec l’IA",
     description: "Une aide à la rédaction pour adapter votre CV et votre lettre de motivation à chaque entreprise.",
@@ -48,8 +47,32 @@ function VerificationNotice({ user }: { readonly user: User }) {
   );
 }
 
+function Notice({ children }: { readonly children: ReactNode }) {
+  return (
+    <div role="status" className="flex gap-4 rounded-[10px] bg-surface p-6">
+      <CloudOff aria-hidden className="size-7 shrink-0 text-muted" strokeWidth={1.5} />
+      <p className="text-[17px] leading-[26px] text-ink-deep">{children}</p>
+    </div>
+  );
+}
+
+/** Profile and CV cards; the API being down degrades to a notice rather than an error page. */
+async function CandidateTools() {
+  const space = await loadCandidateSpace();
+  if (!space) {
+    return <Notice>Votre profil et votre CV sont momentanément indisponibles. Réessayez dans quelques instants.</Notice>;
+  }
+  return (
+    <>
+      <ProfileCard profile={space.profile} />
+      <CvCard cv={space.cv} />
+    </>
+  );
+}
+
 export default async function CandidateSpacePage() {
   const user = await requireUser(CANDIDATE_HOME_PATH);
+  const isCandidate = user.role === "candidate";
 
   return (
     <>
@@ -67,13 +90,14 @@ export default async function CandidateSpacePage() {
               </div>
               <LogOutButton className="text-[17px] font-semibold text-primary underline-offset-4 hover:underline" />
             </div>
+            {isCandidate ? <CandidateTools /> : <Notice>Le profil et le CV sont réservés aux comptes candidats.</Notice>}
           </div>
         </Container>
       </section>
       <ComingSoonSection
         eyebrow="Votre espace"
         title="Ce qui arrive dans votre espace"
-        intro={<p>Votre compte est prêt. Les outils de candidature ouvrent très bientôt ; en attendant, repérez vos entreprises.</p>}
+        intro={<p>Votre profil et votre CV sont prêts à servir. L’envoi des candidatures ouvre très bientôt ; en attendant, repérez vos entreprises.</p>}
         items={UPCOMING}
         actions={<ButtonLink href={COMPANIES_PATH}>Explorer les entreprises</ButtonLink>}
       />
