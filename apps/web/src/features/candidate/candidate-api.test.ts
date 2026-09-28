@@ -139,3 +139,62 @@ describe("cover letters", () => {
     expect(calls[0]?.url).toBe("http://api.test/v1/me/letters/a%2F..%2Fb");
   });
 });
+
+const APPLICATION = {
+  id: "0b7c3e2a-5d4f-4a8b-9c1d-2e3f4a5b6c7d",
+  companySlug: "cabinet-ndiaye",
+  companyName: "Cabinet Ndiaye",
+  companyCity: "Dakar",
+  status: "sent",
+  createdAt: "2026-09-28T10:00:00Z",
+  withdrawnAt: null,
+};
+
+const SNAPSHOT = {
+  firstName: "Awa",
+  lastName: "Diop",
+  email: "awa@example.sn",
+  profile: { ...inputFromProfile(EMPTY_PROFILE), headline: "Comptable" },
+  letter: "Madame, Monsieur,",
+  cvFileName: "cv.pdf",
+  cvSizeBytes: 125,
+};
+
+describe("applications", () => {
+  it("sends an application for a company and lists them", async () => {
+    const sent = apiReturning(201, envelope({ ...APPLICATION, snapshot: SNAPSHOT }));
+    const detail = await sent.api.apply("cabinet-ndiaye", CONTEXT);
+    expect(detail.snapshot?.letter).toBe("Madame, Monsieur,");
+    expect(sent.calls[0]).toMatchObject({
+      url: "http://api.test/v1/me/applications",
+      init: { method: "POST", body: JSON.stringify({ companySlug: "cabinet-ndiaye" }) },
+    });
+
+    const list = apiReturning(200, envelope([APPLICATION]));
+    expect(await list.api.listApplications(CONTEXT)).toEqual([APPLICATION]);
+  });
+
+  it("reads a withdrawn application without its snapshot, and a missing one as null", async () => {
+    const withdrawn = { ...APPLICATION, status: "withdrawn", withdrawnAt: "2026-09-28T11:00:00Z", snapshot: null };
+    const read = apiReturning(200, envelope(withdrawn));
+    expect(await read.api.getApplication(APPLICATION.id, CONTEXT)).toEqual(withdrawn);
+    expect(read.calls[0]?.url).toBe(`http://api.test/v1/me/applications/${APPLICATION.id}`);
+
+    const missing = apiReturning(404, { success: false, data: null, error: { code: "not_found", message: "Introuvable." } });
+    expect(await missing.api.getApplication(APPLICATION.id, CONTEXT)).toBeNull();
+  });
+
+  it("withdraws an application", async () => {
+    const { api, calls } = apiReturning(200, envelope(null));
+
+    await api.withdrawApplication(APPLICATION.id, CONTEXT);
+
+    expect(calls[0]).toMatchObject({ url: `http://api.test/v1/me/applications/${APPLICATION.id}/withdraw`, init: { method: "POST" } });
+  });
+
+  it("surfaces the API's refusal codes", async () => {
+    const { api } = apiReturning(409, { success: false, data: null, error: { code: "already_applied", message: "Déjà envoyée." } });
+
+    await expect(api.apply("cabinet-ndiaye", CONTEXT)).rejects.toMatchObject({ code: "already_applied" });
+  });
+});

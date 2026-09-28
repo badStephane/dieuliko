@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { CloudOff, MailWarning, Send } from "lucide-react";
 import { LogOutButton, ResendVerificationForm } from "@/components/auth/AuthForms";
+import { ApplicationsCard } from "@/components/candidate/ApplicationsCard";
 import { CvCard } from "@/components/candidate/CvCard";
 import { LettersCard } from "@/components/candidate/LettersCard";
 import { ProfileCard } from "@/components/candidate/ProfileCard";
@@ -63,6 +64,7 @@ async function CandidateTools() {
       <ProfileCard profile={space.profile} />
       <CvCard cv={space.cv} />
       <LettersCard letters={space.letters} />
+      <ApplicationsCard applications={space.applications} />
     </>
   );
 }

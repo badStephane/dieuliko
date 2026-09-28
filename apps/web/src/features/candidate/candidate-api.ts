@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { parseApiData, requireResponse, type ApiClient, type RequestOptions } from "@/lib/api-client";
-import { profileSchema, type Profile, type ProfileInput } from "./profile";
+import { profileInputSchema, profileSchema, type Profile, type ProfileInput } from "./profile";
 
 export const cvSchema = z.object({
   fileName: z.string(),
@@ -41,6 +41,35 @@ export const MAX_LETTER_LENGTH = 5000;
 const LETTERS_PATH = "/me/letters";
 const letterPath = (slug: string) => `${LETTERS_PATH}/${encodeURIComponent(slug)}`;
 
+export const applicationSchema = z.object({
+  id: z.string().uuid(),
+  companySlug: z.string(),
+  companyName: z.string(),
+  companyCity: z.string(),
+  status: z.enum(["sent", "withdrawn"]),
+  createdAt: z.string(),
+  withdrawnAt: z.string().nullable(),
+});
+
+/** What the company will read, frozen when the application was sent; null once withdrawn. */
+const snapshotSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string(),
+  profile: profileInputSchema,
+  letter: z.string(),
+  cvFileName: z.string(),
+  cvSizeBytes: z.number().int().nonnegative(),
+});
+
+export const applicationDetailSchema = applicationSchema.extend({ snapshot: snapshotSchema.nullable() });
+
+export type Application = z.infer<typeof applicationSchema>;
+export type ApplicationDetail = z.infer<typeof applicationDetailSchema>;
+
+const APPLICATIONS_PATH = "/me/applications";
+const applicationPath = (id: string) => `${APPLICATIONS_PATH}/${encodeURIComponent(id)}`;
+
 const PROFILE_PATH = "/me/profile";
 const REWRITE_PATH = "/me/assist/rewrite";
 const CV_PATH = "/me/cv";
@@ -67,6 +96,13 @@ export interface CandidateApi {
   generateLetter(slug: string, context: RequestOptions): Promise<Letter>;
   saveLetter(slug: string, content: string, context: RequestOptions): Promise<Letter>;
   deleteLetter(slug: string, context: RequestOptions): Promise<void>;
+  /** The candidate's applications, most recent first. */
+  listApplications(context: RequestOptions): Promise<Application[]>;
+  /** One of the candidate's applications, or null when it does not exist (or is someone else's). */
+  getApplication(id: string, context: RequestOptions): Promise<ApplicationDetail | null>;
+  /** Sends the saved profile, letter and CV to a company's Dieuliko inbox. */
+  apply(companySlug: string, context: RequestOptions): Promise<ApplicationDetail>;
+  withdrawApplication(id: string, context: RequestOptions): Promise<void>;
 }
 
 export function createCandidateApi(client: ApiClient): CandidateApi {
@@ -112,6 +148,20 @@ export function createCandidateApi(client: ApiClient): CandidateApi {
     },
     async deleteLetter(slug, context) {
       await client.delete(letterPath(slug), context);
+    },
+    async listApplications(context) {
+      const response = requireResponse(await client.get(APPLICATIONS_PATH, context), APPLICATIONS_PATH);
+      return parseApiData(z.array(applicationSchema), response, "applications");
+    },
+    async getApplication(id, context) {
+      const response = await client.get(applicationPath(id), context);
+      return response ? parseApiData(applicationDetailSchema, response, "application") : null;
+    },
+    async apply(companySlug, context) {
+      return parseApiData(applicationDetailSchema, await client.post(APPLICATIONS_PATH, { companySlug }, context), "sent application");
+    },
+    async withdrawApplication(id, context) {
+      await client.post(`${applicationPath(id)}/withdraw`, undefined, context);
     },
   };
 }

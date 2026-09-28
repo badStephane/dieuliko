@@ -44,7 +44,15 @@ export default async function LetterPage({ params }: PageProps<"/espace-candidat
               </Link>
             </nav>
             {page ? (
-              <LetterEditor slug={company.slug} companyName={company.name} initial={page.letter} isProfileReady={page.isProfileReady} undescribedExperiences={page.undescribedExperiences} />
+              <LetterEditor
+                slug={company.slug}
+                companyName={company.name}
+                initial={page.letter}
+                isProfileReady={page.isProfileReady}
+                undescribedExperiences={page.undescribedExperiences}
+                hasCv={page.hasCv}
+                application={page.application}
+              />
             ) : (
               <p role="status" className="rounded-[10px] bg-white p-6 text-[17px] leading-[26px] text-ink-deep">
                 {user.role === "candidate"

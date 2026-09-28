@@ -4,8 +4,9 @@ import { CANDIDATE_HOME_PATH, loginHref } from "@/features/auth/redirects";
 import { requestContext } from "@/features/auth/server";
 import { ApiError } from "@/lib/api-client";
 import { getServerApiClient } from "@/lib/server-api";
-import { createCandidateApi, type CandidateApi, type Cv, type Letter } from "./candidate-api";
-import { letterPath } from "./paths";
+import { z } from "zod";
+import { createCandidateApi, type Application, type ApplicationDetail, type CandidateApi, type Cv, type Letter } from "./candidate-api";
+import { applicationPath, letterPath } from "./paths";
 import { hasProfileContent, undescribedExperiences, type Profile } from "./profile";
 
 export function getCandidateApi(): CandidateApi {
@@ -25,6 +26,7 @@ export interface CandidateSpace {
   readonly profile: Profile;
   readonly cv: Cv | null;
   readonly letters: readonly Letter[];
+  readonly applications: readonly Application[];
 }
 
 /**
@@ -34,8 +36,13 @@ export interface CandidateSpace {
 export async function loadCandidateSpace(): Promise<CandidateSpace | null> {
   try {
     const [api, context] = [getCandidateApi(), await requestContext()];
-    const [profile, cv, letters] = await Promise.all([api.getProfile(context), api.getCv(context), api.listLetters(context)]);
-    return { profile, cv, letters };
+    const [profile, cv, letters, applications] = await Promise.all([
+      api.getProfile(context),
+      api.getCv(context),
+      api.listLetters(context),
+      api.listApplications(context),
+    ]);
+    return { profile, cv, letters, applications };
   } catch (error: unknown) {
     redirectOnLostSession(error, CANDIDATE_HOME_PATH);
     console.error("Candidate space unavailable", error);
@@ -49,17 +56,45 @@ export interface LetterPage {
   readonly isProfileReady: boolean;
   /** Titles of the experiences whose missions are not described yet. */
   readonly undescribedExperiences: readonly string[];
+  readonly hasCv: boolean;
+  /** The application currently sent to this company, if any. */
+  readonly application: Application | null;
 }
 
-/** The candidate's letter for a company (null if none yet) and whether their profile can feed the assistant. */
+/** Everything the letter page needs: the letter, what an application still lacks, and the one already sent. */
 export async function loadLetterPage(slug: string): Promise<LetterPage | null> {
   try {
     const [api, context] = [getCandidateApi(), await requestContext()];
-    const [letter, profile] = await Promise.all([api.getLetter(slug, context), api.getProfile(context)]);
-    return { letter, isProfileReady: hasProfileContent(profile), undescribedExperiences: undescribedExperiences(profile) };
+    const [letter, profile, cv, applications] = await Promise.all([
+      api.getLetter(slug, context),
+      api.getProfile(context),
+      api.getCv(context),
+      api.listApplications(context),
+    ]);
+    return {
+      letter,
+      isProfileReady: hasProfileContent(profile),
+      undescribedExperiences: undescribedExperiences(profile),
+      hasCv: cv !== null,
+      application: applications.find((item) => item.companySlug === slug && item.status === "sent") ?? null,
+    };
   } catch (error: unknown) {
     redirectOnLostSession(error, letterPath(slug));
     console.error("Letter page unavailable", error);
+    return null;
+  }
+}
+
+const idSchema = z.string().uuid();
+
+/** One of the candidate's applications (null when missing); null overall when the API cannot answer. */
+export async function loadApplicationPage(id: string): Promise<{ readonly application: ApplicationDetail | null } | null> {
+  if (!idSchema.safeParse(id).success) return { application: null };
+  try {
+    return { application: await getCandidateApi().getApplication(id, await requestContext()) };
+  } catch (error: unknown) {
+    redirectOnLostSession(error, applicationPath(id));
+    console.error("Application page unavailable", error);
     return null;
   }
 }

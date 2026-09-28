@@ -5,8 +5,8 @@ import { errorState, type FormState } from "@/features/auth/form-state";
 import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { requestContext } from "@/features/auth/server";
 import { z } from "zod";
-import { MAX_CV_BYTES, rewriteInputSchema, type Letter } from "./candidate-api";
-import { CANDIDATE_PROFILE_PATH, letterPath } from "./paths";
+import { MAX_CV_BYTES, rewriteInputSchema, type ApplicationDetail, type Letter } from "./candidate-api";
+import { applicationPath, CANDIDATE_PROFILE_PATH, letterPath } from "./paths";
 import { profileInputSchema, type Profile } from "./profile";
 import { getCandidateApi, redirectOnLostSession } from "./server";
 
@@ -109,6 +109,44 @@ export async function deleteLetterAction(slug: unknown): Promise<LetterResult> {
     return { status: "success", message: LETTER_DELETED };
   } catch (error: unknown) {
     return letterError(error, parsed.data);
+  }
+}
+
+const INVALID_APPLICATION = "Cette candidature n’a pas pu être lue. Rechargez la page puis réessayez.";
+const APPLICATION_WITHDRAWN = "Votre candidature a été retirée.";
+
+/** An application action's outcome: the sent application, or why it failed. */
+export type ApplicationResult =
+  | { readonly status: "success"; readonly application?: ApplicationDetail; readonly message?: string }
+  | { readonly status: "error"; readonly message: string };
+
+/** Sends the saved profile, letter and CV to the company's Dieuliko inbox (no email is sent). */
+export async function applyAction(slug: unknown): Promise<ApplicationResult> {
+  const parsed = slugSchema.safeParse(slug);
+  if (!parsed.success) return { status: "error", message: INVALID_APPLICATION };
+  try {
+    const application = await getCandidateApi().apply(parsed.data, await requestContext());
+    revalidatePath(CANDIDATE_HOME_PATH);
+    return { status: "success", application };
+  } catch (error: unknown) {
+    redirectOnLostSession(error, letterPath(parsed.data));
+    const state = errorState(error);
+    return { status: "error", message: Object.values(state.fields ?? {})[0] ?? state.message ?? INVALID_APPLICATION };
+  }
+}
+
+/** Withdraws an application: the company will never see it, and its copy of the CV is erased. */
+export async function withdrawApplicationAction(id: unknown): Promise<ApplicationResult> {
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) return { status: "error", message: INVALID_APPLICATION };
+  try {
+    await getCandidateApi().withdrawApplication(parsed.data, await requestContext());
+    revalidatePath(CANDIDATE_HOME_PATH);
+    revalidatePath(applicationPath(parsed.data));
+    return { status: "success", message: APPLICATION_WITHDRAWN };
+  } catch (error: unknown) {
+    redirectOnLostSession(error, applicationPath(parsed.data));
+    return { status: "error", message: errorState(error).message ?? INVALID_APPLICATION };
   }
 }
 

@@ -34,6 +34,8 @@ vi.mock("next/cache", () => ({
 import { SESSION_COOKIE } from "@/features/auth/server";
 import { IDLE } from "@/features/auth/form-state";
 import {
+  applyAction,
+  withdrawApplicationAction,
   deleteCvAction,
   deleteLetterAction,
   generateLetterAction,
@@ -46,7 +48,7 @@ import { MAX_CV_BYTES } from "./candidate-api";
 import { cvDownloadResponse } from "./cv-download";
 import { EMPTY_PROFILE } from "./profile";
 import { inputFromProfile } from "./profile-form";
-import { loadCandidateSpace, loadLetterPage } from "./server";
+import { loadApplicationPage, loadCandidateSpace, loadLetterPage } from "./server";
 
 // --- Go API double ----------------------------------------------------------------------------
 interface ApiCall {
@@ -85,6 +87,15 @@ const fail = (status: number, code: string, message: string, fields?: Record<str
   answer(status, { success: false, data: null, error: { code, message, ...(fields ? { fields } : {}) } });
 
 const PROFILE_INPUT = inputFromProfile(EMPTY_PROFILE);
+const APPLICATION = {
+  id: "0b7c3e2a-5d4f-4a8b-9c1d-2e3f4a5b6c7d",
+  companySlug: "cabinet-ndiaye",
+  companyName: "Cabinet Ndiaye",
+  companyCity: "Dakar",
+  status: "sent",
+  createdAt: "2026-09-28T10:00:00Z",
+  withdrawnAt: null,
+};
 const CV = { fileName: "cv.pdf", sizeBytes: 8, uploadedAt: "2026-09-28T08:00:00Z" };
 
 function cvForm(content: BlobPart[] = ["%PDF-1.7"], name = "cv.pdf"): FormData {
@@ -260,10 +271,10 @@ describe("cvDownloadResponse", () => {
 });
 
 describe("loadCandidateSpace", () => {
-  it("loads the profile, the CV and the letters together", async () => {
-    stubRoutes({ "/me/profile": EMPTY_PROFILE, "/me/cv": CV, "/me/letters": [] });
+  it("loads the profile, the CV, the letters and the applications together", async () => {
+    stubRoutes({ "/me/profile": EMPTY_PROFILE, "/me/cv": CV, "/me/letters": [], "/me/applications": [APPLICATION] });
 
-    expect(await loadCandidateSpace()).toEqual({ profile: EMPTY_PROFILE, cv: CV, letters: [] });
+    expect(await loadCandidateSpace()).toEqual({ profile: EMPTY_PROFILE, cv: CV, letters: [], applications: [APPLICATION] });
   });
 
   it("returns null when the API is unavailable, so the page can degrade", async () => {
@@ -379,19 +390,34 @@ describe("letter actions", () => {
 describe("loadLetterPage", () => {
   it("loads the letter, whether the profile is ready and which experiences lack missions", async () => {
     const experience = { title: "Assistante comptable", organization: "Cabinet Ndiaye", city: "", startMonth: "2024-01", endMonth: null, description: "" };
-    stubRoutes({ "/me/letters/cabinet-ndiaye": LETTER, "/me/profile": { ...EMPTY_PROFILE, experiences: [experience] } });
+    const elsewhere = { ...APPLICATION, id: "1c8d4f3b-6e5a-4b9c-8d2e-3f4a5b6c7d8e", companySlug: "autre-entreprise" };
+    const withdrawn = { ...APPLICATION, id: "2d9e5a4c-7f6b-4c1d-9e3f-4a5b6c7d8e9f", status: "withdrawn", withdrawnAt: "2026-09-28T09:00:00Z" };
+    stubRoutes({
+      "/me/letters/cabinet-ndiaye": LETTER,
+      "/me/profile": { ...EMPTY_PROFILE, experiences: [experience] },
+      "/me/cv": CV,
+      "/me/applications": [elsewhere, APPLICATION, withdrawn],
+    });
 
     expect(await loadLetterPage("cabinet-ndiaye")).toEqual({
       letter: LETTER,
       isProfileReady: true,
       undescribedExperiences: ["Assistante comptable"],
+      hasCv: true,
+      application: APPLICATION,
     });
   });
 
-  it("has no letter yet, and an empty profile is not ready", async () => {
-    stubRoutes({ "/me/profile": EMPTY_PROFILE });
+  it("has no letter, CV or application yet, and an empty profile is not ready", async () => {
+    stubRoutes({ "/me/profile": EMPTY_PROFILE, "/me/cv": null, "/me/applications": [] });
 
-    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({ letter: null, isProfileReady: false, undescribedExperiences: [] });
+    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({
+      letter: null,
+      isProfileReady: false,
+      undescribedExperiences: [],
+      hasCv: false,
+      application: null,
+    });
   });
 
   it("returns null when the API is unavailable", async () => {
@@ -399,5 +425,68 @@ describe("loadLetterPage", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(await loadLetterPage("cabinet-ndiaye")).toBeNull();
+  });
+});
+
+describe("application actions", () => {
+  const DETAIL = { ...APPLICATION, snapshot: null };
+
+  it("sends the application and refreshes the candidate space", async () => {
+    answer(201, { success: true, data: DETAIL, error: null });
+
+    const result = await applyAction("cabinet-ndiaye");
+
+    expect(result).toEqual({ status: "success", application: DETAIL });
+    expect(apiCalls[0]?.init.body).toBe(JSON.stringify({ companySlug: "cabinet-ndiaye" }));
+    expect(request.revalidated).toContain("/espace-candidat");
+  });
+
+  it("explains a refusal with the API's first field message, or its message", async () => {
+    fail(422, "validation_failed", "Votre candidature est incomplète.", { cv: "Ajoutez d’abord votre CV." });
+    expect(await applyAction("cabinet-ndiaye")).toEqual({ status: "error", message: "Ajoutez d’abord votre CV." });
+
+    fail(409, "already_applied", "Vous avez déjà une candidature en cours.");
+    expect(await applyAction("cabinet-ndiaye")).toEqual({ status: "error", message: "Vous avez déjà une candidature en cours." });
+  });
+
+  it("rejects a malformed slug or id without calling the API", async () => {
+    answer(200, { success: true, data: null, error: null });
+
+    expect((await applyAction("../admin")).status).toBe("error");
+    expect((await withdrawApplicationAction("pas-un-uuid")).status).toBe("error");
+    expect(apiCalls).toHaveLength(0);
+  });
+
+  it("withdraws an application", async () => {
+    ok(null);
+
+    const result = await withdrawApplicationAction(APPLICATION.id);
+
+    expect(result.status).toBe("success");
+    expect(apiCalls[0]?.url).toBe(`http://api.test/v1/me/applications/${APPLICATION.id}/withdraw`);
+    expect(request.revalidated).toContain("/espace-candidat");
+  });
+
+  it("sends a lost session back to the letter page", async () => {
+    fail(401, "unauthenticated", "Votre session a expiré.");
+
+    expect(await redirectOf(applyAction("cabinet-ndiaye"))).toBe("/connexion?next=%2Fespace-candidat%2Flettres%2Fcabinet-ndiaye");
+  });
+});
+
+describe("loadApplicationPage", () => {
+  it("loads one application, or reports it missing", async () => {
+    stubRoutes({ [`/me/applications/${APPLICATION.id}`]: { ...APPLICATION, snapshot: null } });
+    expect(await loadApplicationPage(APPLICATION.id)).toEqual({ application: { ...APPLICATION, snapshot: null } });
+
+    expect(await loadApplicationPage("1c8d4f3b-6e5a-4b9c-8d2e-3f4a5b6c7d8e")).toEqual({ application: null });
+    expect(await loadApplicationPage("pas-un-uuid")).toEqual({ application: null });
+  });
+
+  it("returns null when the API is unavailable", async () => {
+    answer(500, "boom");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await loadApplicationPage(APPLICATION.id)).toBeNull();
   });
 });

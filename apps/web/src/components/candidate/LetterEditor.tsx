@@ -1,20 +1,17 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Copy, PenLine, Sparkles } from "lucide-react";
+import { Copy, PenLine, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition, type ReactNode } from "react";
 import { deleteLetterAction, generateLetterAction, saveLetterAction, type LetterResult } from "@/features/candidate/actions";
-import { MAX_LETTER_LENGTH, type Letter } from "@/features/candidate/candidate-api";
+import { MAX_LETTER_LENGTH, type Application, type Letter } from "@/features/candidate/candidate-api";
 import { CANDIDATE_PROFILE_PATH } from "@/features/candidate/paths";
 import { formatDate } from "@/lib/format";
+import { BUTTON, CARD, ConfirmBox, Feedback, PRIMARY, SECONDARY } from "./ActionControls";
+import { ApplyPanel } from "./ApplyPanel";
 import { useUnsavedChangesWarning } from "./useUnsavedChangesWarning";
 
 const TEXTAREA_ID = "letter-content";
-const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-const BUTTON = `inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-[8px] px-5 text-[17px] font-semibold transition-colors duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS}`;
-const PRIMARY = `${BUTTON} bg-primary text-white hover:bg-ink`;
-const SECONDARY = `${BUTTON} text-ink shadow-[inset_0_0_0_1px_var(--color-line)] hover:bg-surface`;
-const CARD = "flex flex-col gap-5 rounded-[12px] bg-white p-5 shadow-[0_0_0_1px_var(--color-line)] tab:p-8";
 
 type Pending = "generate" | "save" | "delete" | null;
 type Confirming = "regenerate" | "delete" | null;
@@ -27,6 +24,9 @@ interface LetterEditorProps {
   readonly isProfileReady: boolean;
   /** Titles of the experiences whose missions are not described yet. */
   readonly undescribedExperiences: readonly string[];
+  readonly hasCv: boolean;
+  /** The application already sent to this company, if any. */
+  readonly application: Application | null;
 }
 
 /** Points to the experiences with no missions described: without them the letter can only stay vague. */
@@ -49,42 +49,6 @@ function MissingMissionsNote({ titles }: { readonly titles: readonly string[] })
         </Link>
         , puis revenez rédiger votre lettre.
       </p>
-    </div>
-  );
-}
-
-function Feedback({ result }: { readonly result: LetterResult | null }) {
-  if (!result || (result.status === "success" && !result.message)) return null;
-  const isError = result.status === "error";
-  const Icon = isError ? AlertCircle : CheckCircle2;
-  return (
-    <p className={`flex items-start gap-2 text-[16px] leading-6 ${isError ? "text-red-700" : "text-ink"}`}>
-      <Icon aria-hidden className={`mt-0.5 size-5 shrink-0 ${isError ? "" : "text-primary"}`} />
-      {result.message}
-    </p>
-  );
-}
-
-interface ConfirmBoxProps {
-  readonly question: string;
-  readonly confirmLabel: string;
-  readonly onConfirm: () => void;
-  readonly onCancel: () => void;
-  readonly danger?: boolean;
-}
-
-function ConfirmBox({ question, confirmLabel, onConfirm, onCancel, danger }: ConfirmBoxProps) {
-  return (
-    <div role="group" aria-label={question} className={`flex flex-col gap-3 rounded-[10px] p-4 ${danger ? "bg-red-50" : "bg-accent-soft/50"}`}>
-      <p className="text-[16px] leading-6 text-ink">{question}</p>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={onConfirm} className={`${BUTTON} min-h-11 ${danger ? "bg-red-700 text-white hover:bg-red-800" : "bg-ink text-white hover:bg-primary"}`}>
-          {confirmLabel}
-        </button>
-        <button type="button" onClick={onCancel} className={`${SECONDARY} min-h-11`}>
-          Annuler
-        </button>
-      </div>
     </div>
   );
 }
@@ -139,7 +103,7 @@ function StartPanel({ companyName, isProfileReady, undescribedExperiences, isGen
 }
 
 /** Drafts, edits and saves the candidate's cover letter for one company. */
-export function LetterEditor({ slug, companyName, initial, isProfileReady, undescribedExperiences }: LetterEditorProps) {
+export function LetterEditor({ slug, companyName, initial, isProfileReady, undescribedExperiences, hasCv, application }: LetterEditorProps) {
   const [letter, setLetter] = useState<Letter | null>(initial);
   const [content, setContent] = useState(initial?.content ?? "");
   const [isEditing, setIsEditing] = useState(initial !== null);
@@ -186,22 +150,18 @@ export function LetterEditor({ slug, companyName, initial, isProfileReady, undes
   else if (isDirty && letter) status = "Modifications non enregistrées";
   else if (letter && result?.status !== "error") status = `Enregistrée le ${formatDate(letter.updatedAt)}.`;
 
-  if (!isEditing) {
-    return (
-      <StartPanel
-        companyName={companyName}
-        isProfileReady={isProfileReady}
-        undescribedExperiences={undescribedExperiences}
-        isGenerating={pending === "generate"}
-        onGenerate={generate}
-        onWrite={() => setIsEditing(true)}
-        status={status}
-        result={result}
-      />
-    );
-  }
-
-  return (
+  const editor = !isEditing ? (
+    <StartPanel
+      companyName={companyName}
+      isProfileReady={isProfileReady}
+      undescribedExperiences={undescribedExperiences}
+      isGenerating={pending === "generate"}
+      onGenerate={generate}
+      onWrite={() => setIsEditing(true)}
+      status={status}
+      result={result}
+    />
+  ) : (
     <section aria-labelledby="letter-title" className={CARD}>
       <div className="flex flex-col gap-1.5">
         <label id="letter-title" htmlFor={TEXTAREA_ID} className="text-[22px] leading-[30px] font-semibold tab:text-[24px]">
@@ -255,5 +215,20 @@ export function LetterEditor({ slug, companyName, initial, isProfileReady, undes
       </p>
       <Feedback result={result} />
     </section>
+  );
+
+  return (
+    <>
+      {editor}
+      <ApplyPanel
+        slug={slug}
+        companyName={companyName}
+        isProfileReady={isProfileReady}
+        hasCv={hasCv}
+        hasSavedLetter={letter !== null}
+        hasUnsavedChanges={isEditing && isDirty}
+        initial={application}
+      />
+    </>
   );
 }
