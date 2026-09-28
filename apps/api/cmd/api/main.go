@@ -15,6 +15,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/ai"
+	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
@@ -34,6 +36,8 @@ const (
 	idleTimeout       = 120 * time.Second
 	shutdownTimeout   = 15 * time.Second
 	maxHeaderBytes    = 1 << 20
+	// aiTimeout stays under writeTimeout, so a slow model still gets a proper error response.
+	aiTimeout = 25 * time.Second
 	// cleanupInterval is how often expired sessions and email tokens are deleted.
 	cleanupInterval = time.Hour
 )
@@ -77,6 +81,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	profiles := candidate.NewProfileService(pool)
+	writer := ai.NewWriter(ai.Config{
+		APIKey: cfg.AI.APIKey, Model: cfg.AI.Model, BaseURL: cfg.AI.BaseURL,
+		RequestsPerMinute: cfg.AI.RequestsPerMinute, Timeout: aiTimeout,
+	})
+	if cfg.AI.APIKey == "" {
+		logger.Warn("GROQ_API_KEY is not set: the writing assistant is disabled")
+	}
 
 	// Periodic jobs stop with ctx; they are joined before the pool closes.
 	var jobs sync.WaitGroup
@@ -87,7 +99,8 @@ func run() error {
 	internalLimiter := httpx.NewRateLimiter(cfg.InternalRateLimitRPS, cfg.InternalRateLimitBurst, server.RateLimiterIdleTTL)
 	authLimiters := auth.NewLimiters(server.RateLimiterIdleTTL)
 	uploadLimiter := candidate.NewUploadLimiter(server.RateLimiterIdleTTL)
-	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter}, authLimiters.All()...)
+	assistLimiter := assistant.NewLimiter(server.RateLimiterIdleTTL)
+	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter, assistLimiter}, authLimiters.All()...)
 	jobs.Go(func() { evictPeriodically(ctx, limiters) })
 
 	handler, err := server.New(server.Deps{
@@ -99,9 +112,11 @@ func run() error {
 		InternalLimiter: internalLimiter,
 		Accounts:        accounts,
 		AuthLimiters:    authLimiters,
-		Profiles:        candidate.NewProfileService(pool),
+		Profiles:        profiles,
 		CVs:             candidate.NewCVService(pool, cvStore, logger),
 		UploadLimiter:   uploadLimiter,
+		Assistant:       assistant.NewService(writer, profiles),
+		AssistLimiter:   assistLimiter,
 	})
 	if err != nil {
 		return err
@@ -125,6 +140,8 @@ func run() error {
 
 	select {
 	case err := <-serveErr:
+		// Stop the periodic jobs, or the deferred jobs.Wait would block forever (e.g. port already in use).
+		stop()
 		if !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("listen: %w", err)
 		}

@@ -59,6 +59,11 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if cfg.S3 != wantS3 {
 		t.Errorf("S3 = %+v, want SeaweedFS defaults %+v", cfg.S3, wantS3)
 	}
+	// Without a key the API still starts; the writing assistant then answers "unavailable".
+	wantAI := AIConfig{Model: "openai/gpt-oss-120b", BaseURL: "https://api.groq.com/openai/v1", RequestsPerMinute: 25}
+	if cfg.AI != wantAI {
+		t.Errorf("AI = %+v, want Groq defaults %+v", cfg.AI, wantAI)
+	}
 }
 
 func TestLoadReadsEveryVariable(t *testing.T) {
@@ -85,6 +90,10 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		"S3_BUCKET":                 "cvs",
 		"S3_ACCESS_KEY":             "key",
 		"S3_SECRET_KEY":             "s3-secret",
+		"GROQ_API_KEY":              "gsk_key",
+		"GROQ_MODEL":                "llama-3.3-70b-versatile",
+		"GROQ_BASE_URL":             "https://groq.test/openai/v1/",
+		"AI_REQUESTS_PER_MINUTE":    "10",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -125,6 +134,10 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 	if cfg.S3 != wantS3 {
 		t.Errorf("S3 = %+v", cfg.S3)
 	}
+	wantAI := AIConfig{APIKey: "gsk_key", Model: "llama-3.3-70b-versatile", BaseURL: "https://groq.test/openai/v1", RequestsPerMinute: 10}
+	if cfg.AI != wantAI {
+		t.Errorf("AI = %+v", cfg.AI)
+	}
 }
 
 func TestLoadReportsEveryInvalidVariable(t *testing.T) {
@@ -138,12 +151,14 @@ func TestLoadReportsEveryInvalidVariable(t *testing.T) {
 		"APP_BASE_URL":              "dieuliko.sn",
 		"SMTP_PORT":                 "70000",
 		"S3_ENDPOINT":               "127.0.0.1:8333",
+		"GROQ_BASE_URL":             "groq",
+		"AI_REQUESTS_PER_MINUTE":    "0",
 	}))
 	if err == nil {
 		t.Fatal("Load succeeded, want an error")
 	}
 
-	for _, want := range []string{"DATABASE_URL", "CORS_ORIGINS", "RATE_LIMIT_RPS", "RATE_LIMIT_BURST", "INTERNAL_API_TOKEN", "INTERNAL_RATE_LIMIT_BURST", "LOG_LEVEL", "APP_BASE_URL", "SMTP_PORT", "S3_ENDPOINT"} {
+	for _, want := range []string{"DATABASE_URL", "CORS_ORIGINS", "RATE_LIMIT_RPS", "RATE_LIMIT_BURST", "INTERNAL_API_TOKEN", "INTERNAL_RATE_LIMIT_BURST", "LOG_LEVEL", "APP_BASE_URL", "SMTP_PORT", "S3_ENDPOINT", "GROQ_BASE_URL", "AI_REQUESTS_PER_MINUTE"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
 		}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
@@ -85,6 +86,7 @@ func deps(db Pinger, burst int) Deps {
 		AuthLimiters:    auth.NewLimiters(time.Minute),
 		// Candidate routes are only checked to be mounted behind the session: the services are never reached.
 		UploadLimiter: candidate.NewUploadLimiter(time.Minute),
+		AssistLimiter: assistant.NewLimiter(time.Minute),
 	}
 }
 
@@ -157,8 +159,13 @@ func TestMountsAuthRoutesUnderV1(t *testing.T) {
 func TestMountsCandidateRoutesUnderV1BehindASession(t *testing.T) {
 	handler := newTestServer(t, pinger{}, 10)
 
-	for _, path := range []string{"/v1/me/profile", "/v1/me/cv"} {
-		rec := do(handler, http.MethodGet, path, nil)
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/v1/me/profile"},
+		{http.MethodGet, "/v1/me/cv"},
+		{http.MethodPost, "/v1/me/assist/rewrite"},
+	} {
+		path := route.path
+		rec := do(handler, route.method, path, nil)
 
 		if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), `"code":"unauthenticated"`) {
 			t.Errorf("%s: status %d body %s", path, rec.Code, rec.Body.String())

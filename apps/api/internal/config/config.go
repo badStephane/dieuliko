@@ -31,7 +31,9 @@ type Config struct {
 	AppBaseURL string
 	SMTP       SMTPConfig
 	// S3 is the object storage of candidates' CVs (SeaweedFS in development, R2 in production).
-	S3       S3Config
+	S3 S3Config
+	// AI is the language model behind the writing assistant (Groq's free tier).
+	AI       AIConfig
 	LogLevel slog.Level
 }
 
@@ -74,6 +76,10 @@ const (
 	defaultS3Endpoint        = "http://127.0.0.1:8333"
 	defaultS3Region          = "us-east-1"
 	defaultS3Bucket          = "dieuliko-cvs"
+	defaultGroqModel         = "openai/gpt-oss-120b"
+	defaultGroqBaseURL       = "https://api.groq.com/openai/v1"
+	// Groq's free tier allows 30 requests per minute; staying under it refuses overload before a call.
+	defaultAIRequestsPerMinute = "25"
 	// MinInternalTokenLength keeps the internal token out of brute-force reach.
 	MinInternalTokenLength = 32
 )
@@ -135,6 +141,8 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 
 	s3, s3Errs := loadS3(get)
 	errs = append(errs, s3Errs...)
+	aiConfig, aiErrs := loadAI(get)
+	errs = append(errs, aiErrs...)
 
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(get("LOG_LEVEL", defaultLogLevel))); err != nil {
@@ -157,6 +165,7 @@ func Load(lookup func(string) (string, bool)) (Config, error) {
 		AppBaseURL:             appBaseURL,
 		SMTP:                   smtp,
 		S3:                     s3,
+		AI:                     aiConfig,
 		LogLevel:               level,
 	}, nil
 }
@@ -189,6 +198,34 @@ func splitList(raw string) []string {
 		}
 	}
 	return items
+}
+
+// AIConfig locates the language model provider. Without APIKey the writing assistant is disabled.
+type AIConfig struct {
+	APIKey  string
+	Model   string
+	BaseURL string
+	// RequestsPerMinute is kept under the provider's own limit (30 on Groq's free tier).
+	RequestsPerMinute int
+}
+
+// loadAI reads the GROQ_* and AI_* variables.
+func loadAI(get func(string, string) string) (AIConfig, []error) {
+	var errs []error
+	baseURL, err := parseHTTPURL("GROQ_BASE_URL", get("GROQ_BASE_URL", defaultGroqBaseURL))
+	if err != nil {
+		errs = append(errs, err)
+	}
+	perMinute, err := strconv.Atoi(get("AI_REQUESTS_PER_MINUTE", defaultAIRequestsPerMinute))
+	if err != nil || perMinute < 1 {
+		errs = append(errs, errors.New("AI_REQUESTS_PER_MINUTE must be a positive integer"))
+	}
+	return AIConfig{
+		APIKey:            get("GROQ_API_KEY", ""),
+		Model:             get("GROQ_MODEL", defaultGroqModel),
+		BaseURL:           baseURL,
+		RequestsPerMinute: perMinute,
+	}, errs
 }
 
 // loadS3 reads the S3_* variables.

@@ -66,6 +66,7 @@ Session obligatoire (Bearer), réservé au rôle `candidate` (403 `forbidden` si
 | PUT | `/v1/me/cv` | `multipart/form-data`, champ `file` : PDF ≤ 5 Mo, remplace le CV précédent |
 | GET | `/v1/me/cv/file` | Télécharge le PDF (`attachment`, `no-store`) ; 404 `no_cv` |
 | DELETE | `/v1/me/cv` | Supprime le CV (idempotent) |
+| POST | `/v1/me/assist/rewrite` | `{kind: "summary"\|"experience", text, title, organization}` → `{text}` : proposition de l’assistant |
 
 Profil : `headline`, `summary`, `phone`, `city`, `desiredSectors` (slugs de `/v1/sectors`, 5 max), `skills` (30 max),
 `languages` `[{language, level}]` (`notions` · `intermediaire` · `courant` · `natif`), `experiences`
@@ -74,6 +75,10 @@ Profil : `headline`, `summary`, `phone`, `city`, `desiredSectors` (slugs de `/v1
 `endMonth: null` = en cours, rien après le mois courant. Le téléphone est rendu en E.164 (`77 123 45 67` →
 `+221771234567`). Les erreurs de liste sont adressées `experiences.0.title`.
 
+- Assistant de rédaction : modèle `GROQ_MODEL` (par défaut `openai/gpt-oss-120b`) via l’API Groq compatible OpenAI,
+  offre gratuite. Le résumé s’appuie sur le profil enregistré (rédigé de zéro s’il est vide) ; consignes : français,
+  aucun fait inventé, textes du candidat traités comme des données. Plafond global `AI_REQUESTS_PER_MINUTE` (25,
+  sous les 30/min de Groq) et 20 demandes/heure par candidat ; surcharge → 503 `ai_busy`, sans clé → 503 `ai_unavailable`.
 - CV : type vérifié par la signature `%PDF-` (pas par l'extension ni le Content-Type), nom de fichier assaini,
   5 envois par candidat puis 1/min. Le fichier est stocké dans le bucket sous une clé aléatoire
   (`cvs/<userId>/<uuid>.pdf`) ; les métadonnées ne pointent jamais vers un fichier absent (fichier écrit avant,
@@ -117,6 +122,8 @@ internal/company    domaine annuaire : types, repository PostgreSQL, handlers, i
 internal/auth       comptes : service (inscription, sessions, emails), handlers, limites
 internal/candidate  espace candidat : profil structuré (validation, service), CV (service, upload), handlers
 internal/storage    stockage objet S3 (minio-go) derrière l'interface Store
+internal/ai         client Groq (chat completions) avec plafond global, erreurs « occupé » / « indisponible »
+internal/assistant  assistant de rédaction : amélioration des textes du profil, handlers
 internal/mail       envoi SMTP (go-mail) derrière l'interface Mailer
 internal/httpx      enveloppe JSON, lecture JSON stricte, logs structurés, recovery, rate limit
 internal/server     assemblage du routeur Gin
