@@ -34,6 +34,7 @@ const USER_FACING_CODES: ReadonlySet<string> = new Set([
   "email_unverified",
   "already_applied",
   "daily_limit",
+  "account_suspended",
 ]);
 
 /** Turns a failed call into form feedback; unexpected failures get a generic message. */

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError, type ApiClient, type ApiResponse } from "@/lib/api-client";
 import { createAuthApi } from "./auth-api";
 import { errorState, formText, IDLE } from "./form-state";
-import { CANDIDATE_HOME_PATH, loginHref, safeNextPath } from "./redirects";
+import { ADMIN_HOME_PATH, afterLoginPath, CANDIDATE_HOME_PATH, loginHref, safeNextPath } from "./redirects";
 
 const USER = {
   id: "2db42e29-e9c9-4a16-9a58-74856f9aecf1",
@@ -153,5 +153,26 @@ describe("safeNextPath", () => {
 
   it("builds login links that return to a page", () => {
     expect(loginHref("/espace-candidat")).toBe("/connexion?next=%2Fespace-candidat");
+  });
+});
+
+describe("afterLoginPath", () => {
+  it("sends each role to its own space when no page was asked for", () => {
+    expect(afterLoginPath("candidate", null)).toBe(CANDIDATE_HOME_PATH);
+    expect(afterLoginPath("admin", "")).toBe(ADMIN_HOME_PATH);
+  });
+
+  it("honours a same-site page, and falls back to the role's space for an unsafe one", () => {
+    expect(afterLoginPath("admin", "/admin/entreprises")).toBe("/admin/entreprises");
+    expect(afterLoginPath("admin", "//evil.com")).toBe(ADMIN_HOME_PATH);
+    expect(afterLoginPath("candidate", "https://evil.com")).toBe(CANDIDATE_HOME_PATH);
+  });
+});
+
+describe("suspended accounts", () => {
+  it("shows the API's message", () => {
+    const error = new ApiError("Ce compte est suspendu. Contactez-nous pour en savoir plus.", 403, "account_suspended");
+
+    expect(errorState(error).message).toBe("Ce compte est suspendu. Contactez-nous pour en savoir plus.");
   });
 });

@@ -3,18 +3,24 @@
 import { CircleUserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CANDIDATE_HOME_PATH, LOGIN_PATH } from "@/features/auth/redirects";
+import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH, LOGIN_PATH } from "@/features/auth/redirects";
 
 type AccountState =
   | { readonly status: "loading" }
   | { readonly status: "guest" }
-  | { readonly status: "user"; readonly firstName: string };
+  | { readonly status: "user"; readonly firstName: string; readonly isAdmin: boolean };
 
-function readFirstName(body: unknown): string | null {
+interface SessionUser {
+  readonly firstName: string;
+  readonly isAdmin: boolean;
+}
+
+function readUser(body: unknown): SessionUser | null {
   if (typeof body !== "object" || body === null || !("user" in body)) return null;
   const { user } = body;
   if (typeof user !== "object" || user === null || !("firstName" in user)) return null;
-  return typeof user.firstName === "string" ? user.firstName : null;
+  if (typeof user.firstName !== "string") return null;
+  return { firstName: user.firstName, isAdmin: "role" in user && user.role === "admin" };
 }
 
 /**
@@ -29,8 +35,8 @@ function useAccount(pathname: string): AccountState {
     fetch("/api/session", { signal: controller.signal, cache: "no-store" })
       .then((response) => response.json())
       .then((body: unknown) => {
-        const firstName = readFirstName(body);
-        setState(firstName ? { status: "user", firstName } : { status: "guest" });
+        const user = readUser(body);
+        setState(user ? { status: "user", ...user } : { status: "guest" });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -52,7 +58,7 @@ interface AccountLinkProps {
 export function AccountLink({ pathname, className = "" }: AccountLinkProps) {
   const account = useAccount(pathname);
   const isUser = account.status === "user";
-  const href = isUser ? CANDIDATE_HOME_PATH : LOGIN_PATH;
+  const href = isUser ? (account.isAdmin ? ADMIN_HOME_PATH : CANDIDATE_HOME_PATH) : LOGIN_PATH;
   const isActive = pathname === href;
 
   return (

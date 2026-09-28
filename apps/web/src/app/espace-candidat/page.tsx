@@ -11,7 +11,8 @@ import { ComingSoonSection, type ComingSoonItem } from "@/components/placeholder
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Container } from "@/components/ui/Container";
 import type { User } from "@/features/auth/auth-api";
-import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
+import { redirect } from "next/navigation";
+import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
 import { loadCandidateSpace } from "@/features/candidate/server";
 import { COMPANIES_PATH } from "@/lib/navigation";
@@ -71,6 +72,7 @@ async function CandidateTools() {
 
 export default async function CandidateSpacePage() {
   const user = await requireUser(CANDIDATE_HOME_PATH);
+  if (user.role === "admin") redirect(ADMIN_HOME_PATH);
   const isCandidate = user.role === "candidate";
 
   return (

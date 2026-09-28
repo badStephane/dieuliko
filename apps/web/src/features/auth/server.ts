@@ -1,7 +1,7 @@
 import "server-only";
 import { isIP } from "node:net";
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import type { RequestOptions } from "@/lib/api-client";
 import { getServerApiClient } from "@/lib/server-api";
@@ -62,5 +62,15 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
 export async function requireUser(returnTo: string): Promise<User> {
   const user = await getCurrentUser();
   if (!user) redirect(loginHref(returnTo));
+  return user;
+}
+
+/**
+ * Protects a back-office page or action: login first, then a 404 for anyone but an admin, so the back-office does
+ * not reveal it exists. The API checks the role again on every call.
+ */
+export async function requireAdmin(returnTo: string): Promise<User> {
+  const user = await requireUser(returnTo);
+  if (user.role !== "admin") notFound();
   return user;
 }

@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { errorState, formText, type FormState } from "./form-state";
-import { LOGIN_PATH, NEXT_PARAM, RESET_DONE_PARAM, safeNextPath } from "./redirects";
+import type { User } from "./auth-api";
+import { afterLoginPath, LOGIN_PATH, NEXT_PARAM, RESET_DONE_PARAM, safeNextPath } from "./redirects";
 import { clearSessionCookie, getAuthApi, requestContext, setSessionCookie } from "./server";
 
 const PASSWORD_RESET_SENT =
@@ -30,13 +31,15 @@ export async function signUpAction(_previous: FormState, formData: FormData): Pr
 
 export async function logInAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const values = { email: formText(formData, "email") };
+  let role: User["role"];
   try {
-    const { session } = await getAuthApi().logIn(values.email, formText(formData, "password"), await requestContext());
+    const { user, session } = await getAuthApi().logIn(values.email, formText(formData, "password"), await requestContext());
     await setSessionCookie(session.token, session.expiresAt);
+    role = user.role;
   } catch (error: unknown) {
     return errorState(error, values);
   }
-  redirect(safeNextPath(formText(formData, NEXT_PARAM)));
+  redirect(afterLoginPath(role, formText(formData, NEXT_PARAM)));
 }
 
 /** Revokes the session on the API (best effort) and always clears the cookie. */

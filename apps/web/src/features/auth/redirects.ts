@@ -1,5 +1,7 @@
 /** Where a candidate lands after logging in or signing up. */
 export const CANDIDATE_HOME_PATH = "/espace-candidat";
+/** Where an admin lands after logging in: the back-office. */
+export const ADMIN_HOME_PATH = "/admin";
 export const LOGIN_PATH = "/connexion";
 export const FORGOT_PASSWORD_PATH = "/mot-de-passe-oublie";
 /** Query parameter carrying the page to return to after login. */
@@ -19,6 +21,13 @@ export function safeNextPath(raw: string | null | undefined): string {
   if (!raw || raw.length > MAX_NEXT_LENGTH || !raw.startsWith("/") || raw.startsWith("//")) return CANDIDATE_HOME_PATH;
   if (raw.includes("\\") || CONTROL_CHARACTERS.test(raw)) return CANDIDATE_HOME_PATH;
   return raw;
+}
+
+/** The page asked for (when same-site), else the space of the user's role. */
+export function afterLoginPath(role: "candidate" | "admin", raw: string | null | undefined): string {
+  const home = role === "admin" ? ADMIN_HOME_PATH : CANDIDATE_HOME_PATH;
+  const asked = safeNextPath(raw);
+  return raw && asked === raw ? asked : home;
 }
 
 /** Login URL that returns to `path` afterwards. */

@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/features/auth/server";
 
 /** What the (client) site header needs to know about the visitor; never cached. */
 interface SessionSummary {
-  readonly user: { readonly firstName: string } | null;
+  readonly user: { readonly firstName: string; readonly role: "candidate" | "admin" } | null;
 }
 
 /**
@@ -13,7 +13,7 @@ export async function GET(): Promise<Response> {
   let body: SessionSummary;
   try {
     const user = await getCurrentUser();
-    body = { user: user ? { firstName: user.firstName } : null };
+    body = { user: user ? { firstName: user.firstName, role: user.role } : null };
   } catch (error: unknown) {
     console.error("Session lookup failed", error);
     body = { user: null };
