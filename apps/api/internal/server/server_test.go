@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/admin"
 	"github.com/badStephane/dieuliko/apps/api/internal/application"
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
@@ -89,6 +90,7 @@ func deps(db Pinger, burst int) Deps {
 		UploadLimiter: candidate.NewUploadLimiter(time.Minute),
 		AssistLimiter: assistant.NewLimiter(time.Minute),
 		ApplyLimiter:  application.NewLimiter(time.Minute),
+		AdminLimiter:  admin.NewLimiter(time.Minute),
 	}
 }
 
@@ -169,6 +171,7 @@ func TestMountsCandidateRoutesUnderV1BehindASession(t *testing.T) {
 		{http.MethodPost, "/v1/me/letters/cabinet-ndiaye/generate"},
 		{http.MethodGet, "/v1/me/applications"},
 		{http.MethodPost, "/v1/me/applications"},
+		{http.MethodGet, "/v1/admin/stats"},
 	} {
 		path := route.path
 		rec := do(handler, route.method, path, nil)

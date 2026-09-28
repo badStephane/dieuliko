@@ -12,6 +12,7 @@ import (
 	"github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/admin"
 	"github.com/badStephane/dieuliko/apps/api/internal/application"
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
@@ -55,6 +56,9 @@ type Deps struct {
 	Applications  application.Applications
 	// ApplyLimiter budgets application sends and withdrawals per candidate.
 	ApplyLimiter *httpx.RateLimiter
+	Admin        admin.Services
+	// AdminLimiter budgets back-office changes per admin.
+	AdminLimiter *httpx.RateLimiter
 }
 
 // New returns the HTTP handler of the API.
@@ -96,6 +100,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	candidate.NewHandler(deps.Profiles, deps.CVs, deps.UploadLimiter).Register(v1, auth.RequireUser(deps.Accounts))
 	assistant.NewHandler(deps.Assistant, deps.Letters, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)
 	application.NewHandler(deps.Applications, deps.ApplyLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)
+	admin.NewHandler(deps.Admin, deps.AdminLimiter).Register(v1, auth.RequireUser(deps.Accounts))
 
 	return router, nil
 }

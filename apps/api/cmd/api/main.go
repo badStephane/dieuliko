@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/admin"
 	"github.com/badStephane/dieuliko/apps/api/internal/ai"
 	"github.com/badStephane/dieuliko/apps/api/internal/application"
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
@@ -103,7 +104,8 @@ func run() error {
 	uploadLimiter := candidate.NewUploadLimiter(server.RateLimiterIdleTTL)
 	assistLimiter := assistant.NewLimiter(server.RateLimiterIdleTTL)
 	applyLimiter := application.NewLimiter(server.RateLimiterIdleTTL)
-	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter, assistLimiter, applyLimiter}, authLimiters.All()...)
+	adminLimiter := admin.NewLimiter(server.RateLimiterIdleTTL)
+	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter, assistLimiter, applyLimiter, adminLimiter}, authLimiters.All()...)
 	jobs.Go(func() { evictPeriodically(ctx, limiters) })
 
 	cvs := candidate.NewCVService(pool, cvStore, logger)
@@ -125,6 +127,8 @@ func run() error {
 		AssistLimiter:   assistLimiter,
 		Applications:    application.NewService(pool, cvStore, profiles, cvs, letters, logger),
 		ApplyLimiter:    applyLimiter,
+		Admin:           admin.Services{Stats: admin.NewStatsService(pool)},
+		AdminLimiter:    adminLimiter,
 	})
 	if err != nil {
 		return err
