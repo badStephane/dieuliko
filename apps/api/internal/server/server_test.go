@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/badStephane/dieuliko/apps/api/internal/application"
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
@@ -87,6 +88,7 @@ func deps(db Pinger, burst int) Deps {
 		// Candidate routes are only checked to be mounted behind the session: the services are never reached.
 		UploadLimiter: candidate.NewUploadLimiter(time.Minute),
 		AssistLimiter: assistant.NewLimiter(time.Minute),
+		ApplyLimiter:  application.NewLimiter(time.Minute),
 	}
 }
 
@@ -165,6 +167,8 @@ func TestMountsCandidateRoutesUnderV1BehindASession(t *testing.T) {
 		{http.MethodPost, "/v1/me/assist/rewrite"},
 		{http.MethodGet, "/v1/me/letters"},
 		{http.MethodPost, "/v1/me/letters/cabinet-ndiaye/generate"},
+		{http.MethodGet, "/v1/me/applications"},
+		{http.MethodPost, "/v1/me/applications"},
 	} {
 		path := route.path
 		rec := do(handler, route.method, path, nil)

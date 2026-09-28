@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/badStephane/dieuliko/apps/api/internal/ai"
+	"github.com/badStephane/dieuliko/apps/api/internal/application"
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
@@ -101,9 +102,12 @@ func run() error {
 	authLimiters := auth.NewLimiters(server.RateLimiterIdleTTL)
 	uploadLimiter := candidate.NewUploadLimiter(server.RateLimiterIdleTTL)
 	assistLimiter := assistant.NewLimiter(server.RateLimiterIdleTTL)
-	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter, assistLimiter}, authLimiters.All()...)
+	applyLimiter := application.NewLimiter(server.RateLimiterIdleTTL)
+	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter, assistLimiter, applyLimiter}, authLimiters.All()...)
 	jobs.Go(func() { evictPeriodically(ctx, limiters) })
 
+	cvs := candidate.NewCVService(pool, cvStore, logger)
+	letters := assistant.NewLetterService(pool, writer, profiles, companies)
 	handler, err := server.New(server.Deps{
 		Config:          cfg,
 		Logger:          logger,
@@ -114,11 +118,13 @@ func run() error {
 		Accounts:        accounts,
 		AuthLimiters:    authLimiters,
 		Profiles:        profiles,
-		CVs:             candidate.NewCVService(pool, cvStore, logger),
+		CVs:             cvs,
 		UploadLimiter:   uploadLimiter,
 		Assistant:       assistant.NewService(writer, profiles),
-		Letters:         assistant.NewLetterService(pool, writer, profiles, companies),
+		Letters:         letters,
 		AssistLimiter:   assistLimiter,
+		Applications:    application.NewService(pool, cvStore, profiles, cvs, letters, logger),
+		ApplyLimiter:    applyLimiter,
 	})
 	if err != nil {
 		return err
