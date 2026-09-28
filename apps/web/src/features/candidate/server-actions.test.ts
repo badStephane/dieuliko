@@ -377,16 +377,21 @@ describe("letter actions", () => {
 });
 
 describe("loadLetterPage", () => {
-  it("loads the letter and whether the profile is ready for the assistant", async () => {
-    stubRoutes({ "/me/letters/cabinet-ndiaye": LETTER, "/me/profile": { ...EMPTY_PROFILE, headline: "Comptable" } });
+  it("loads the letter, whether the profile is ready and which experiences lack missions", async () => {
+    const experience = { title: "Assistante comptable", organization: "Cabinet Ndiaye", city: "", startMonth: "2024-01", endMonth: null, description: "" };
+    stubRoutes({ "/me/letters/cabinet-ndiaye": LETTER, "/me/profile": { ...EMPTY_PROFILE, experiences: [experience] } });
 
-    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({ letter: LETTER, isProfileReady: true });
+    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({
+      letter: LETTER,
+      isProfileReady: true,
+      undescribedExperiences: ["Assistante comptable"],
+    });
   });
 
   it("has no letter yet, and an empty profile is not ready", async () => {
     stubRoutes({ "/me/profile": EMPTY_PROFILE });
 
-    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({ letter: null, isProfileReady: false });
+    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({ letter: null, isProfileReady: false, undescribedExperiences: [] });
   });
 
   it("returns null when the API is unavailable", async () => {

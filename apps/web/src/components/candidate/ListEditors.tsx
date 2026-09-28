@@ -125,7 +125,7 @@ export function ExperiencesEditor({ items, onChange, errors }: ListEditorProps<E
                 </div>
                 <TextInput path={`${prefix}.city`} label="Ville" optional value={item.city} onChange={(city) => update(index, { city })} error={errors[`${prefix}.city`]} maxLength={PROFILE_LIMITS.city} />
                 <PeriodFields prefix={prefix} startMonth={item.startMonth} endMonth={item.endMonth} ongoingLabel="J’occupe toujours ce poste" errors={errors} onChange={(period) => update(index, period)} />
-                <TextArea path={`${prefix}.description`} label="Missions et réalisations" optional rows={3} value={item.description} onChange={(description) => update(index, { description })} error={errors[`${prefix}.description`]} maxLength={PROFILE_LIMITS.description} />
+                <TextArea path={`${prefix}.description`} label="Missions et réalisations" optional hint="Vos tâches et un résultat concret : votre lettre de motivation s’appuie dessus." rows={3} value={item.description} onChange={(description) => update(index, { description })} error={errors[`${prefix}.description`]} maxLength={PROFILE_LIMITS.description} />
                 <AiAssist kind="experience" text={item.description} title={item.title} organization={item.organization} onAccept={(description) => update(index, { description })} />
               </ItemCard>
             );

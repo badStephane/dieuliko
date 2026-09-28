@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_PROFILE, profileCompletion, profileSchema, type Profile } from "./profile";
+import { EMPTY_PROFILE, profileCompletion, profileSchema, undescribedExperiences, type Profile } from "./profile";
 
 const FULL_PROFILE: Profile = {
   headline: "Comptable junior",
@@ -63,5 +63,24 @@ describe("profileCompletion", () => {
     const partial: Profile = { ...EMPTY_PROFILE, headline: "Comptable", summary: "Rigoureuse." };
 
     expect(profileCompletion(partial).percent).toBe(17);
+  });
+});
+
+describe("undescribedExperiences", () => {
+  it("names the experiences whose missions are not described, blank text included", () => {
+    const profile: Profile = {
+      ...FULL_PROFILE,
+      experiences: [
+        FULL_PROFILE.experiences[0],
+        { ...FULL_PROFILE.experiences[0], title: "Stagiaire", description: "   " },
+        { ...FULL_PROFILE.experiences[0], title: "Caissière", description: "Tenue de la caisse, 200 clients par jour." },
+      ],
+    };
+
+    expect(undescribedExperiences(profile)).toEqual(["Assistante comptable", "Stagiaire"]);
+  });
+
+  it("is empty without experiences", () => {
+    expect(undescribedExperiences(EMPTY_PROFILE)).toEqual([]);
   });
 });

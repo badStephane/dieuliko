@@ -98,6 +98,11 @@ export function profileCompletion(profile: ProfileInput): ProfileCompletion {
   return { percent: Math.round((done / steps.length) * 100), steps };
 }
 
+/** Titles of the experiences with no missions described: the letter can only stay vague about them. */
+export function undescribedExperiences(profile: ProfileInput): string[] {
+  return profile.experiences.filter((experience) => experience.description.trim() === "").map((experience) => experience.title);
+}
+
 /** Whether the assistant has something to write from (same rule as the API). */
 export function hasProfileContent(profile: ProfileInput): boolean {
   return profile.headline !== "" || profile.experiences.length > 0 || profile.educations.length > 0 || profile.skills.length > 0;

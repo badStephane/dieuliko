@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/api-client";
 import { getServerApiClient } from "@/lib/server-api";
 import { createCandidateApi, type CandidateApi, type Cv, type Letter } from "./candidate-api";
 import { letterPath } from "./paths";
-import { hasProfileContent, type Profile } from "./profile";
+import { hasProfileContent, undescribedExperiences, type Profile } from "./profile";
 
 export function getCandidateApi(): CandidateApi {
   return createCandidateApi(getServerApiClient());
@@ -47,6 +47,8 @@ export interface LetterPage {
   readonly letter: Letter | null;
   /** False when the profile is too empty for the assistant to write from. */
   readonly isProfileReady: boolean;
+  /** Titles of the experiences whose missions are not described yet. */
+  readonly undescribedExperiences: readonly string[];
 }
 
 /** The candidate's letter for a company (null if none yet) and whether their profile can feed the assistant. */
@@ -54,7 +56,7 @@ export async function loadLetterPage(slug: string): Promise<LetterPage | null> {
   try {
     const [api, context] = [getCandidateApi(), await requestContext()];
     const [letter, profile] = await Promise.all([api.getLetter(slug, context), api.getProfile(context)]);
-    return { letter, isProfileReady: hasProfileContent(profile) };
+    return { letter, isProfileReady: hasProfileContent(profile), undescribedExperiences: undescribedExperiences(profile) };
   } catch (error: unknown) {
     redirectOnLostSession(error, letterPath(slug));
     console.error("Letter page unavailable", error);

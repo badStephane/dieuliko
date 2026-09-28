@@ -25,6 +25,32 @@ interface LetterEditorProps {
   readonly initial: Letter | null;
   /** False when the profile is too empty for the assistant to write from. */
   readonly isProfileReady: boolean;
+  /** Titles of the experiences whose missions are not described yet. */
+  readonly undescribedExperiences: readonly string[];
+}
+
+/** Points to the experiences with no missions described: without them the letter can only stay vague. */
+function MissingMissionsNote({ titles }: { readonly titles: readonly string[] }) {
+  if (titles.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2 rounded-[10px] bg-accent-soft/50 p-4 text-[16px] leading-6 text-ink">
+      <p>
+        {titles.length === 1 ? "Cette expérience n’a pas de missions décrites" : "Ces expériences n’ont pas de missions décrites"} : la lettre
+        restera vague sur ce que vous y avez fait.
+      </p>
+      <ul className="list-disc pl-6">
+        {titles.map((title, index) => (
+          <li key={index} className="break-words">{title}</li>
+        ))}
+      </ul>
+      <p>
+        <Link href={CANDIDATE_PROFILE_PATH} className="font-semibold underline underline-offset-4">
+          Décrire mes missions dans mon profil
+        </Link>
+        , puis revenez rédiger votre lettre.
+      </p>
+    </div>
+  );
 }
 
 function Feedback({ result }: { readonly result: LetterResult | null }) {
@@ -66,6 +92,7 @@ function ConfirmBox({ question, confirmLabel, onConfirm, onCancel, danger }: Con
 interface StartPanelProps {
   readonly companyName: string;
   readonly isProfileReady: boolean;
+  readonly undescribedExperiences: readonly string[];
   readonly isGenerating: boolean;
   readonly onGenerate: () => void;
   readonly onWrite: () => void;
@@ -74,7 +101,7 @@ interface StartPanelProps {
 }
 
 /** First visit: let the assistant draft the letter, or start from a blank page. */
-function StartPanel({ companyName, isProfileReady, isGenerating, onGenerate, onWrite, status, result }: StartPanelProps) {
+function StartPanel({ companyName, isProfileReady, undescribedExperiences, isGenerating, onGenerate, onWrite, status, result }: StartPanelProps) {
   return (
     <section aria-labelledby="letter-start-title" className={CARD}>
       <h2 id="letter-start-title" className="text-[22px] leading-[30px] font-semibold tab:text-[24px]">
@@ -92,6 +119,7 @@ function StartPanel({ companyName, isProfileReady, isGenerating, onGenerate, onW
           .
         </p>
       )}
+      {isProfileReady && <MissingMissionsNote titles={undescribedExperiences} />}
       <div className="flex flex-col gap-3 tab:flex-row">
         <button type="button" onClick={onGenerate} disabled={isGenerating} className={PRIMARY}>
           <Sparkles aria-hidden className={`size-5 ${isGenerating ? "motion-safe:animate-pulse" : ""}`} />
@@ -111,7 +139,7 @@ function StartPanel({ companyName, isProfileReady, isGenerating, onGenerate, onW
 }
 
 /** Drafts, edits and saves the candidate's cover letter for one company. */
-export function LetterEditor({ slug, companyName, initial, isProfileReady }: LetterEditorProps) {
+export function LetterEditor({ slug, companyName, initial, isProfileReady, undescribedExperiences }: LetterEditorProps) {
   const [letter, setLetter] = useState<Letter | null>(initial);
   const [content, setContent] = useState(initial?.content ?? "");
   const [isEditing, setIsEditing] = useState(initial !== null);
@@ -163,6 +191,7 @@ export function LetterEditor({ slug, companyName, initial, isProfileReady }: Let
       <StartPanel
         companyName={companyName}
         isProfileReady={isProfileReady}
+        undescribedExperiences={undescribedExperiences}
         isGenerating={pending === "generate"}
         onGenerate={generate}
         onWrite={() => setIsEditing(true)}
