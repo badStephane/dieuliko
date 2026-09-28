@@ -97,3 +97,8 @@ export function profileCompletion(profile: ProfileInput): ProfileCompletion {
   const done = steps.filter((step) => step.done).length;
   return { percent: Math.round((done / steps.length) * 100), steps };
 }
+
+/** Whether the assistant has something to write from (same rule as the API). */
+export function hasProfileContent(profile: ProfileInput): boolean {
+  return profile.headline !== "" || profile.experiences.length > 0 || profile.educations.length > 0 || profile.skills.length > 0;
+}

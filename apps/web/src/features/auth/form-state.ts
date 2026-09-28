@@ -29,6 +29,8 @@ const USER_FACING_CODES: ReadonlySet<string> = new Set([
   "ai_busy",
   "ai_unavailable",
   "ai_failed",
+  "no_letter",
+  "not_found",
 ]);
 
 /** Turns a failed call into form feedback; unexpected failures get a generic message. */

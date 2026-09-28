@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { errorState, type FormState } from "@/features/auth/form-state";
 import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { requestContext } from "@/features/auth/server";
-import { MAX_CV_BYTES, rewriteInputSchema } from "./candidate-api";
-import { CANDIDATE_PROFILE_PATH } from "./paths";
+import { z } from "zod";
+import { MAX_CV_BYTES, rewriteInputSchema, type Letter } from "./candidate-api";
+import { CANDIDATE_PROFILE_PATH, letterPath } from "./paths";
 import { profileInputSchema, type Profile } from "./profile";
 import { getCandidateApi, redirectOnLostSession } from "./server";
 
@@ -55,6 +56,59 @@ export async function improveTextAction(input: unknown): Promise<ImproveResult> 
     const state = errorState(error);
     const fieldMessage = Object.values(state.fields ?? {})[0];
     return { status: "error", message: fieldMessage ?? state.message ?? INVALID_PROFILE };
+  }
+}
+
+const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120);
+const INVALID_LETTER = "Cette lettre n’a pas pu être lue. Rechargez la page puis réessayez.";
+const LETTER_DELETED = "Votre lettre a été supprimée.";
+
+/** A letter action's outcome: the stored letter, or why it failed. */
+export type LetterResult =
+  | { readonly status: "success"; readonly letter?: Letter; readonly message?: string }
+  | { readonly status: "error"; readonly message: string };
+
+/** First per-field message when there is one (e.g. "Complétez votre profil"), else the global message. */
+function letterError(error: unknown, slug: string): LetterResult {
+  redirectOnLostSession(error, letterPath(slug));
+  const state = errorState(error);
+  return { status: "error", message: Object.values(state.fields ?? {})[0] ?? state.message ?? INVALID_LETTER };
+}
+
+/** Drafts the letter for a company with the assistant (replacing any previous one). */
+export async function generateLetterAction(slug: unknown): Promise<LetterResult> {
+  const parsed = slugSchema.safeParse(slug);
+  if (!parsed.success) return { status: "error", message: INVALID_LETTER };
+  try {
+    const letter = await getCandidateApi().generateLetter(parsed.data, await requestContext());
+    revalidatePath(CANDIDATE_HOME_PATH);
+    return { status: "success", letter };
+  } catch (error: unknown) {
+    return letterError(error, parsed.data);
+  }
+}
+
+export async function saveLetterAction(slug: unknown, content: unknown): Promise<LetterResult> {
+  const parsed = z.object({ slug: slugSchema, content: z.string() }).safeParse({ slug, content });
+  if (!parsed.success) return { status: "error", message: INVALID_LETTER };
+  try {
+    const letter = await getCandidateApi().saveLetter(parsed.data.slug, parsed.data.content, await requestContext());
+    revalidatePath(CANDIDATE_HOME_PATH);
+    return { status: "success", letter };
+  } catch (error: unknown) {
+    return letterError(error, parsed.data.slug);
+  }
+}
+
+export async function deleteLetterAction(slug: unknown): Promise<LetterResult> {
+  const parsed = slugSchema.safeParse(slug);
+  if (!parsed.success) return { status: "error", message: INVALID_LETTER };
+  try {
+    await getCandidateApi().deleteLetter(parsed.data, await requestContext());
+    revalidatePath(CANDIDATE_HOME_PATH);
+    return { status: "success", message: LETTER_DELETED };
+  } catch (error: unknown) {
+    return letterError(error, parsed.data);
   }
 }
 

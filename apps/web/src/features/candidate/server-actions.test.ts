@@ -33,12 +33,20 @@ vi.mock("next/cache", () => ({
 
 import { SESSION_COOKIE } from "@/features/auth/server";
 import { IDLE } from "@/features/auth/form-state";
-import { deleteCvAction, improveTextAction, saveProfileAction, uploadCvAction } from "./actions";
+import {
+  deleteCvAction,
+  deleteLetterAction,
+  generateLetterAction,
+  improveTextAction,
+  saveLetterAction,
+  saveProfileAction,
+  uploadCvAction,
+} from "./actions";
 import { MAX_CV_BYTES } from "./candidate-api";
 import { cvDownloadResponse } from "./cv-download";
 import { EMPTY_PROFILE } from "./profile";
 import { inputFromProfile } from "./profile-form";
-import { loadCandidateSpace } from "./server";
+import { loadCandidateSpace, loadLetterPage } from "./server";
 
 // --- Go API double ----------------------------------------------------------------------------
 interface ApiCall {
@@ -59,6 +67,20 @@ function answer(status: number, body: unknown, headers: Record<string, string> =
 }
 
 const ok = (data: unknown) => answer(200, { success: true, data, error: null });
+
+/** Answers each API path with its own data; unknown paths get a 404 envelope. */
+function stubRoutes(routes: Record<string, unknown>): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const path = new URL(url).pathname.replace(/^\/v1/, "");
+      if (!(path in routes)) {
+        return new Response(JSON.stringify({ success: false, data: null, error: { code: "not_found", message: "Introuvable." } }), { status: 404 });
+      }
+      return new Response(JSON.stringify({ success: true, data: routes[path], error: null }), { status: 200 });
+    }),
+  );
+}
 const fail = (status: number, code: string, message: string, fields?: Record<string, string>) =>
   answer(status, { success: false, data: null, error: { code, message, ...(fields ? { fields } : {}) } });
 
@@ -238,16 +260,10 @@ describe("cvDownloadResponse", () => {
 });
 
 describe("loadCandidateSpace", () => {
-  it("loads the profile and the CV together", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) => {
-        const data = url.endsWith("/me/profile") ? EMPTY_PROFILE : CV;
-        return new Response(JSON.stringify({ success: true, data, error: null }), { status: 200 });
-      }),
-    );
+  it("loads the profile, the CV and the letters together", async () => {
+    stubRoutes({ "/me/profile": EMPTY_PROFILE, "/me/cv": CV, "/me/letters": [] });
 
-    expect(await loadCandidateSpace()).toEqual({ profile: EMPTY_PROFILE, cv: CV });
+    expect(await loadCandidateSpace()).toEqual({ profile: EMPTY_PROFILE, cv: CV, letters: [] });
   });
 
   it("returns null when the API is unavailable, so the page can degrade", async () => {
@@ -297,5 +313,86 @@ describe("improveTextAction", () => {
     expect(await redirectOf(improveTextAction({ kind: "summary", text: "x", title: "", organization: "" }))).toBe(
       "/connexion?next=%2Fespace-candidat%2Fprofil",
     );
+  });
+});
+
+const LETTER = {
+  companySlug: "cabinet-ndiaye",
+  companyName: "Cabinet Ndiaye",
+  companyCity: "Dakar",
+  content: "Madame, Monsieur,",
+  updatedAt: "2026-09-28T09:00:00Z",
+};
+
+describe("letter actions", () => {
+  it("drafts a letter and refreshes the candidate space", async () => {
+    ok(LETTER);
+
+    const result = await generateLetterAction("cabinet-ndiaye");
+
+    expect(result).toEqual({ status: "success", letter: LETTER });
+    expect(apiCalls[0]?.url).toBe("http://api.test/v1/me/letters/cabinet-ndiaye/generate");
+    expect(request.revalidated).toContain("/espace-candidat");
+  });
+
+  it("saves the edited letter", async () => {
+    ok(LETTER);
+
+    const result = await saveLetterAction("cabinet-ndiaye", "Ma lettre.");
+
+    expect(result.status).toBe("success");
+    expect(apiCalls[0]?.init).toMatchObject({ method: "PUT", body: JSON.stringify({ content: "Ma lettre." }) });
+  });
+
+  it("explains why a letter cannot be drafted", async () => {
+    fail(422, "validation_failed", "Certains champs sont invalides.", { profile: "Complétez d’abord votre profil." });
+
+    expect(await generateLetterAction("cabinet-ndiaye")).toEqual({ status: "error", message: "Complétez d’abord votre profil." });
+  });
+
+  it("deletes the letter", async () => {
+    ok(null);
+
+    expect((await deleteLetterAction("cabinet-ndiaye")).status).toBe("success");
+    expect(apiCalls[0]?.init.method).toBe("DELETE");
+  });
+
+  it.each([
+    ["a malformed slug", () => generateLetterAction("../admin")],
+    ["content that is not text", () => saveLetterAction("cabinet-ndiaye", 42)],
+  ])("rejects %s without calling the API", async (_case, run) => {
+    ok(LETTER);
+
+    expect((await run()).status).toBe("error");
+    expect(apiCalls).toHaveLength(0);
+  });
+
+  it("sends a lost session back to the letter page", async () => {
+    fail(401, "unauthenticated", "Votre session a expiré.");
+
+    expect(await redirectOf(saveLetterAction("cabinet-ndiaye", "Ma lettre."))).toBe(
+      "/connexion?next=%2Fespace-candidat%2Flettres%2Fcabinet-ndiaye",
+    );
+  });
+});
+
+describe("loadLetterPage", () => {
+  it("loads the letter and whether the profile is ready for the assistant", async () => {
+    stubRoutes({ "/me/letters/cabinet-ndiaye": LETTER, "/me/profile": { ...EMPTY_PROFILE, headline: "Comptable" } });
+
+    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({ letter: LETTER, isProfileReady: true });
+  });
+
+  it("has no letter yet, and an empty profile is not ready", async () => {
+    stubRoutes({ "/me/profile": EMPTY_PROFILE });
+
+    expect(await loadLetterPage("cabinet-ndiaye")).toEqual({ letter: null, isProfileReady: false });
+  });
+
+  it("returns null when the API is unavailable", async () => {
+    answer(500, "boom");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await loadLetterPage("cabinet-ndiaye")).toBeNull();
   });
 });

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { CloudOff, MailWarning, Send, Sparkles } from "lucide-react";
+import { CloudOff, MailWarning, Send } from "lucide-react";
 import { LogOutButton, ResendVerificationForm } from "@/components/auth/AuthForms";
 import { CvCard } from "@/components/candidate/CvCard";
+import { LettersCard } from "@/components/candidate/LettersCard";
 import { ProfileCard } from "@/components/candidate/ProfileCard";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { ComingSoonSection, type ComingSoonItem } from "@/components/placeholder/ComingSoonSection";
@@ -20,11 +21,6 @@ export const metadata: Metadata = {
 };
 
 const UPCOMING: readonly ComingSoonItem[] = [
-  {
-    title: "CV et lettre avec l’IA",
-    description: "Une aide à la rédaction pour adapter votre CV et votre lettre de motivation à chaque entreprise.",
-    icon: Sparkles,
-  },
   {
     title: "Candidatures spontanées",
     description: "Envoyez votre candidature aux entreprises de l’annuaire, même sans offre publiée.",
@@ -66,6 +62,7 @@ async function CandidateTools() {
     <>
       <ProfileCard profile={space.profile} />
       <CvCard cv={space.cv} />
+      <LettersCard letters={space.letters} />
     </>
   );
 }
@@ -97,7 +94,7 @@ export default async function CandidateSpacePage() {
       <ComingSoonSection
         eyebrow="Votre espace"
         title="Ce qui arrive dans votre espace"
-        intro={<p>Votre profil et votre CV sont prêts à servir. L’envoi des candidatures ouvre très bientôt ; en attendant, repérez vos entreprises.</p>}
+        intro={<p>Votre profil, votre CV et vos lettres sont prêts à servir. L’envoi des candidatures ouvre très bientôt ; en attendant, repérez vos entreprises.</p>}
         items={UPCOMING}
         actions={<ButtonLink href={COMPANIES_PATH}>Explorer les entreprises</ButtonLink>}
       />

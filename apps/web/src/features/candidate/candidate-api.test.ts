@@ -93,3 +93,49 @@ describe("createCandidateApi", () => {
     });
   });
 });
+
+const LETTER = {
+  companySlug: "cabinet-ndiaye",
+  companyName: "Cabinet Ndiaye",
+  companyCity: "Dakar",
+  content: "Madame, Monsieur,",
+  updatedAt: "2026-09-28T09:00:00Z",
+};
+
+describe("cover letters", () => {
+  it("lists, reads, drafts, saves and deletes letters for the session", async () => {
+    const list = apiReturning(200, envelope([LETTER]));
+    expect(await list.api.listLetters(CONTEXT)).toEqual([LETTER]);
+    expect(list.calls[0]?.url).toBe("http://api.test/v1/me/letters");
+
+    const read = apiReturning(200, envelope(LETTER));
+    expect(await read.api.getLetter("cabinet-ndiaye", CONTEXT)).toEqual(LETTER);
+    expect(read.calls[0]?.url).toBe("http://api.test/v1/me/letters/cabinet-ndiaye");
+
+    const draft = apiReturning(200, envelope(LETTER));
+    await draft.api.generateLetter("cabinet-ndiaye", CONTEXT);
+    expect(draft.calls[0]).toMatchObject({ url: "http://api.test/v1/me/letters/cabinet-ndiaye/generate", init: { method: "POST" } });
+
+    const save = apiReturning(200, envelope(LETTER));
+    await save.api.saveLetter("cabinet-ndiaye", "Ma lettre.", CONTEXT);
+    expect(save.calls[0]?.init).toMatchObject({ method: "PUT", body: JSON.stringify({ content: "Ma lettre." }) });
+
+    const removal = apiReturning(200, envelope(null));
+    await removal.api.deleteLetter("cabinet-ndiaye", CONTEXT);
+    expect(removal.calls[0]?.init.method).toBe("DELETE");
+  });
+
+  it("reads a missing letter as null", async () => {
+    const { api } = apiReturning(404, { success: false, data: null, error: { code: "no_letter", message: "Pas de lettre." } });
+
+    expect(await api.getLetter("cabinet-ndiaye", CONTEXT)).toBeNull();
+  });
+
+  it("escapes the slug in paths", async () => {
+    const { api, calls } = apiReturning(200, envelope(LETTER));
+
+    await api.getLetter("a/../b", CONTEXT);
+
+    expect(calls[0]?.url).toBe("http://api.test/v1/me/letters/a%2F..%2Fb");
+  });
+});

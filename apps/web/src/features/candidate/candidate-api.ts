@@ -25,6 +25,22 @@ export type RewriteInput = z.infer<typeof rewriteInputSchema>;
 
 const rewriteResultSchema = z.object({ text: z.string() });
 
+export const letterSchema = z.object({
+  companySlug: z.string(),
+  companyName: z.string(),
+  companyCity: z.string(),
+  content: z.string(),
+  updatedAt: z.string(),
+});
+
+export type Letter = z.infer<typeof letterSchema>;
+
+/** Longest letter the API stores. */
+export const MAX_LETTER_LENGTH = 5000;
+
+const LETTERS_PATH = "/me/letters";
+const letterPath = (slug: string) => `${LETTERS_PATH}/${encodeURIComponent(slug)}`;
+
 const PROFILE_PATH = "/me/profile";
 const REWRITE_PATH = "/me/assist/rewrite";
 const CV_PATH = "/me/cv";
@@ -43,6 +59,14 @@ export interface CandidateApi {
   downloadCv(context: RequestOptions): Promise<Response | null>;
   /** A better version of a profile text, proposed by the writing assistant. */
   rewrite(input: RewriteInput, context: RequestOptions): Promise<string>;
+  /** The candidate's letters, most recently edited first. */
+  listLetters(context: RequestOptions): Promise<Letter[]>;
+  /** The candidate's letter for a company, or null when there is none yet. */
+  getLetter(slug: string, context: RequestOptions): Promise<Letter | null>;
+  /** Drafts a letter with the assistant, replacing any previous one. */
+  generateLetter(slug: string, context: RequestOptions): Promise<Letter>;
+  saveLetter(slug: string, content: string, context: RequestOptions): Promise<Letter>;
+  deleteLetter(slug: string, context: RequestOptions): Promise<void>;
 }
 
 export function createCandidateApi(client: ApiClient): CandidateApi {
@@ -71,6 +95,23 @@ export function createCandidateApi(client: ApiClient): CandidateApi {
     },
     async rewrite(input, context) {
       return parseApiData(rewriteResultSchema, await client.post(REWRITE_PATH, input, context), "rewrite").text;
+    },
+    async listLetters(context) {
+      const response = requireResponse(await client.get(LETTERS_PATH, context), LETTERS_PATH);
+      return parseApiData(z.array(letterSchema), response, "letters");
+    },
+    async getLetter(slug, context) {
+      const response = await client.get(letterPath(slug), context);
+      return response ? parseApiData(letterSchema, response, "letter") : null;
+    },
+    async generateLetter(slug, context) {
+      return parseApiData(letterSchema, await client.post(`${letterPath(slug)}/generate`, undefined, context), "drafted letter");
+    },
+    async saveLetter(slug, content, context) {
+      return parseApiData(letterSchema, await client.put(letterPath(slug), { content }, context), "saved letter");
+    },
+    async deleteLetter(slug, context) {
+      await client.delete(letterPath(slug), context);
     },
   };
 }

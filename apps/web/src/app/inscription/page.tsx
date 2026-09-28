@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AuthPanel, AUTH_LINK_CLASSES } from "@/components/auth/AuthPanel";
 import { SignUpForm } from "@/components/auth/AuthForms";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { CANDIDATE_HOME_PATH, loginHref } from "@/features/auth/redirects";
+import { getCurrentUser } from "@/features/auth/server";
+import { letterPath } from "@/features/candidate/paths";
 import type { Company } from "@/features/companies/company";
 import { companyHref } from "@/features/companies/search-params";
 import { getCompanyRepository } from "@/features/companies/source";
@@ -22,10 +25,21 @@ async function findTargetCompany(rawParam: string | string[] | undefined): Promi
   return repository.findBySlug(slug);
 }
 
+/** A visitor already logged in skips the form. If the API cannot tell, the form is shown: signing up reports it. */
+async function isLoggedIn(): Promise<boolean> {
+  try {
+    return (await getCurrentUser()) !== null;
+  } catch (error: unknown) {
+    console.error("Session check failed on the sign-up page", error);
+    return false;
+  }
+}
+
 export default async function SignupPage({ searchParams }: PageProps<"/inscription">) {
   const company = await findTargetCompany((await searchParams)[COMPANY_PARAM]);
-  // A candidate who came from a company profile goes back to it once registered.
-  const next = company ? companyHref(company.slug) : CANDIDATE_HOME_PATH;
+  // A candidate who came from a company profile goes on to prepare their letter for it once registered.
+  const next = company ? letterPath(company.slug) : CANDIDATE_HOME_PATH;
+  if (await isLoggedIn()) redirect(next);
 
   return (
     <>

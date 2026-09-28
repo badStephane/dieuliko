@@ -9,21 +9,12 @@ import { AiAssist } from "./AiAssist";
 import { EducationsEditor, ExperiencesEditor, LanguagesEditor } from "./ListEditors";
 import { ProfileSection, TextArea, TextInput } from "./ProfileFields";
 import { SectorPicker, SkillsInput } from "./SkillsAndSectors";
+import { useUnsavedChangesWarning } from "./useUnsavedChangesWarning";
 
 const NO_ERRORS: Readonly<Record<string, string>> = {};
 
 function sameInput(a: ProfileInput, b: ProfileInput): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
-}
-
-/** Warns before leaving the page while changes are unsaved. */
-function useUnsavedChangesWarning(isDirty: boolean) {
-  useEffect(() => {
-    if (!isDirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [isDirty]);
 }
 
 /** Moves focus to the first invalid field after a rejected save, so keyboard and screen-reader users land on it. */
