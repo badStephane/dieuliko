@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { saveProfileAction, type ProfileSaveResult } from "@/features/candidate/actions";
 import { PROFILE_LIMITS, type ProfileInput } from "@/features/candidate/profile";
 import { firstErrorPath, inputFromProfile, pathId } from "@/features/candidate/profile-form";
+import { AiAssist } from "./AiAssist";
 import { EducationsEditor, ExperiencesEditor, LanguagesEditor } from "./ListEditors";
 import { ProfileSection, TextArea, TextInput } from "./ProfileFields";
 import { SectorPicker, SkillsInput } from "./SkillsAndSectors";
@@ -94,6 +95,7 @@ export function ProfileForm({ initial }: { readonly initial: ProfileInput }) {
           <TextInput path="phone" label="Téléphone" type="tel" hint="Sans indicatif, le numéro est considéré comme sénégalais." placeholder="77 123 45 67" value={input.phone} onChange={(value) => set("phone", value)} error={errors.phone} autoComplete="tel" />
         </div>
         <TextArea path="summary" label="Présentation" hint="Quelques lignes sur votre parcours et ce que vous recherchez." rows={5} value={input.summary} onChange={(value) => set("summary", value)} error={errors.summary} maxLength={PROFILE_LIMITS.summary} />
+        <AiAssist kind="summary" text={input.summary} onAccept={(value) => set("summary", value)} hint="L’assistant s’appuie sur votre profil enregistré : enregistrez d’abord vos dernières modifications." />
       </ProfileSection>
 
       <ProfileSection id="sectors" title="Secteurs recherchés" description={`Jusqu’à ${PROFILE_LIMITS.desiredSectors} secteurs, pour cibler les bonnes entreprises.`}>

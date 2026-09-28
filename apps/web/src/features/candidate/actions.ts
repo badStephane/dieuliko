@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { errorState, type FormState } from "@/features/auth/form-state";
 import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { requestContext } from "@/features/auth/server";
-import { MAX_CV_BYTES } from "./candidate-api";
+import { MAX_CV_BYTES, rewriteInputSchema } from "./candidate-api";
 import { CANDIDATE_PROFILE_PATH } from "./paths";
 import { profileInputSchema, type Profile } from "./profile";
 import { getCandidateApi, redirectOnLostSession } from "./server";
@@ -37,6 +37,24 @@ export async function saveProfileAction(input: unknown): Promise<ProfileSaveResu
     redirectOnLostSession(error, CANDIDATE_PROFILE_PATH);
     const state = errorState(error);
     return { status: "error", message: state.message ?? INVALID_PROFILE, ...(state.fields ? { fields: state.fields } : {}) };
+  }
+}
+
+/** The assistant's proposal, or why there is none. */
+export type ImproveResult = { readonly status: "success"; readonly text: string } | { readonly status: "error"; readonly message: string };
+
+/** Asks the writing assistant for a better version of a profile text; the candidate decides whether to keep it. */
+export async function improveTextAction(input: unknown): Promise<ImproveResult> {
+  const parsed = rewriteInputSchema.safeParse(input);
+  if (!parsed.success) return { status: "error", message: INVALID_PROFILE };
+  try {
+    const text = await getCandidateApi().rewrite(parsed.data, await requestContext());
+    return { status: "success", text };
+  } catch (error: unknown) {
+    redirectOnLostSession(error, CANDIDATE_PROFILE_PATH);
+    const state = errorState(error);
+    const fieldMessage = Object.values(state.fields ?? {})[0];
+    return { status: "error", message: fieldMessage ?? state.message ?? INVALID_PROFILE };
   }
 }
 

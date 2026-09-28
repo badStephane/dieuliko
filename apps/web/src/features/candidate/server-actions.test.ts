@@ -33,7 +33,7 @@ vi.mock("next/cache", () => ({
 
 import { SESSION_COOKIE } from "@/features/auth/server";
 import { IDLE } from "@/features/auth/form-state";
-import { deleteCvAction, saveProfileAction, uploadCvAction } from "./actions";
+import { deleteCvAction, improveTextAction, saveProfileAction, uploadCvAction } from "./actions";
 import { MAX_CV_BYTES } from "./candidate-api";
 import { cvDownloadResponse } from "./cv-download";
 import { EMPTY_PROFILE } from "./profile";
@@ -261,5 +261,41 @@ describe("loadCandidateSpace", () => {
     fail(401, "unauthenticated", "Votre session a expiré.");
 
     expect(await redirectOf(loadCandidateSpace())).toBe("/connexion?next=%2Fespace-candidat");
+  });
+});
+
+describe("improveTextAction", () => {
+  it("returns the assistant's proposal", async () => {
+    ok({ text: "Comptable rigoureuse." });
+
+    const result = await improveTextAction({ kind: "summary", text: "comptable", title: "", organization: "" });
+
+    expect(result).toEqual({ status: "success", text: "Comptable rigoureuse." });
+    expect(apiCalls[0]?.init.headers).toMatchObject({ Authorization: "Bearer session-token" });
+  });
+
+  it("shows the assistant's own messages when it is busy or unavailable", async () => {
+    fail(503, "ai_busy", "L’assistant est très sollicité en ce moment. Réessayez dans une minute.");
+
+    const result = await improveTextAction({ kind: "summary", text: "x", title: "", organization: "" });
+
+    expect(result).toEqual({ status: "error", message: "L’assistant est très sollicité en ce moment. Réessayez dans une minute." });
+  });
+
+  it("rejects malformed requests without calling the API", async () => {
+    ok({ text: "x" });
+
+    const result = await improveTextAction({ kind: "poem", text: 1 });
+
+    expect(result.status).toBe("error");
+    expect(apiCalls).toHaveLength(0);
+  });
+
+  it("sends a lost session back to the login page", async () => {
+    fail(401, "unauthenticated", "Votre session a expiré.");
+
+    expect(await redirectOf(improveTextAction({ kind: "summary", text: "x", title: "", organization: "" }))).toBe(
+      "/connexion?next=%2Fespace-candidat%2Fprofil",
+    );
   });
 });

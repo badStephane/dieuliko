@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { LANGUAGE_LEVELS, PROFILE_LIMITS, type Education, type Experience, type Language, type LanguageLevel } from "@/features/candidate/profile";
 import { BLANK_EDUCATION, BLANK_EXPERIENCE, BLANK_LANGUAGE, pathId, removeAt, replaceAt } from "@/features/candidate/profile-form";
+import { AiAssist } from "./AiAssist";
 import { AddButton, FieldError, RemoveButton, TextArea, TextInput } from "./ProfileFields";
 
 type Errors = Readonly<Record<string, string>>;
@@ -125,6 +126,7 @@ export function ExperiencesEditor({ items, onChange, errors }: ListEditorProps<E
                 <TextInput path={`${prefix}.city`} label="Ville" optional value={item.city} onChange={(city) => update(index, { city })} error={errors[`${prefix}.city`]} maxLength={PROFILE_LIMITS.city} />
                 <PeriodFields prefix={prefix} startMonth={item.startMonth} endMonth={item.endMonth} ongoingLabel="J’occupe toujours ce poste" errors={errors} onChange={(period) => update(index, period)} />
                 <TextArea path={`${prefix}.description`} label="Missions et réalisations" optional rows={3} value={item.description} onChange={(description) => update(index, { description })} error={errors[`${prefix}.description`]} maxLength={PROFILE_LIMITS.description} />
+                <AiAssist kind="experience" text={item.description} title={item.title} organization={item.organization} onAccept={(description) => update(index, { description })} />
               </ItemCard>
             );
           })}

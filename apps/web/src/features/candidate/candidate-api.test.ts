@@ -69,6 +69,16 @@ describe("createCandidateApi", () => {
     expect(download.calls[0]?.url).toBe("http://api.test/v1/me/cv/file");
   });
 
+  it("asks the assistant to rewrite a text", async () => {
+    const { api, calls } = apiReturning(200, envelope({ text: "Texte amélioré." }));
+    const input = { kind: "experience" as const, text: "saisie", title: "Comptable", organization: "Cabinet" };
+
+    const text = await api.rewrite(input, CONTEXT);
+
+    expect(text).toBe("Texte amélioré.");
+    expect(calls[0]).toMatchObject({ url: "http://api.test/v1/me/assist/rewrite", init: { method: "POST", body: JSON.stringify(input) } });
+  });
+
   it("surfaces validation errors with their field paths", async () => {
     const { api } = apiReturning(422, {
       success: false,

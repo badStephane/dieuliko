@@ -13,7 +13,20 @@ export type Cv = z.infer<typeof cvSchema>;
 /** Largest CV the API accepts (5 MB); checked before uploading to spare the candidate's data. */
 export const MAX_CV_BYTES = 5 * 1024 * 1024;
 
+/** A profile text for the writing assistant; title and organization situate an experience description. */
+export const rewriteInputSchema = z.object({
+  kind: z.enum(["summary", "experience"]),
+  text: z.string(),
+  title: z.string(),
+  organization: z.string(),
+});
+
+export type RewriteInput = z.infer<typeof rewriteInputSchema>;
+
+const rewriteResultSchema = z.object({ text: z.string() });
+
 const PROFILE_PATH = "/me/profile";
+const REWRITE_PATH = "/me/assist/rewrite";
 const CV_PATH = "/me/cv";
 const CV_FILE_PATH = "/me/cv/file";
 
@@ -28,6 +41,8 @@ export interface CandidateApi {
   deleteCv(context: RequestOptions): Promise<void>;
   /** The PDF as a raw response to stream, or null when the candidate has no CV. */
   downloadCv(context: RequestOptions): Promise<Response | null>;
+  /** A better version of a profile text, proposed by the writing assistant. */
+  rewrite(input: RewriteInput, context: RequestOptions): Promise<string>;
 }
 
 export function createCandidateApi(client: ApiClient): CandidateApi {
@@ -53,6 +68,9 @@ export function createCandidateApi(client: ApiClient): CandidateApi {
     },
     async downloadCv(context) {
       return client.download(CV_FILE_PATH, context);
+    },
+    async rewrite(input, context) {
+      return parseApiData(rewriteResultSchema, await client.post(REWRITE_PATH, input, context), "rewrite").text;
     },
   };
 }

@@ -26,6 +26,9 @@ const USER_FACING_CODES: ReadonlySet<string> = new Set([
   "unauthenticated",
   "forbidden",
   "no_cv",
+  "ai_busy",
+  "ai_unavailable",
+  "ai_failed",
 ]);
 
 /** Turns a failed call into form feedback; unexpected failures get a generic message. */
