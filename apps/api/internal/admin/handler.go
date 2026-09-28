@@ -27,7 +27,8 @@ type StatsReader interface {
 
 // Services are the back-office use cases the handler exposes.
 type Services struct {
-	Stats StatsReader
+	Stats     StatsReader
+	Companies CompanyManager
 }
 
 // NewLimiter budgets back-office changes per admin; idle buckets are kept for idleTTL.
@@ -59,6 +60,7 @@ func NewHandler(services Services, limiter *httpx.RateLimiter) *Handler {
 func (h *Handler) Register(group *gin.RouterGroup, requireUser gin.HandlerFunc) {
 	admin := group.Group("/admin", requireUser, RequireAdmin)
 	admin.GET("/stats", h.stats)
+	h.registerCompanies(admin)
 }
 
 func (h *Handler) stats(c *gin.Context) {

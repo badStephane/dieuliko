@@ -2,9 +2,7 @@ package company
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -107,11 +105,11 @@ func parseSearch(c *gin.Context) (Filters, PageRequest, error) {
 	if sector != "" && !IsValidSlug(sector) {
 		return Filters{}, PageRequest{}, errors.New("Le paramètre « sector » est invalide.")
 	}
-	offset, err := intParam(c, "offset", 0, 0, MaxPageOffset)
+	offset, err := httpx.IntQuery(c, "offset", 0, 0, MaxPageOffset)
 	if err != nil {
 		return Filters{}, PageRequest{}, err
 	}
-	limit, err := intParam(c, "limit", DefaultPageLimit, 1, MaxPageLimit)
+	limit, err := httpx.IntQuery(c, "limit", DefaultPageLimit, 1, MaxPageLimit)
 	if err != nil {
 		return Filters{}, PageRequest{}, err
 	}
@@ -121,16 +119,4 @@ func parseSearch(c *gin.Context) (Filters, PageRequest, error) {
 		City:   strings.TrimSpace(c.Query("city")),
 	}
 	return filters, PageRequest{Offset: offset, Limit: limit}, nil
-}
-
-func intParam(c *gin.Context, name string, fallback, minimum, maximum int) (int, error) {
-	raw, ok := c.GetQuery(name)
-	if !ok || raw == "" {
-		return fallback, nil
-	}
-	value, err := strconv.Atoi(raw)
-	if err != nil || value < minimum || value > maximum {
-		return 0, fmt.Errorf("Le paramètre « %s » doit être un entier entre %d et %d.", name, minimum, maximum)
-	}
-	return value, nil
 }

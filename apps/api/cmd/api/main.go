@@ -127,7 +127,7 @@ func run() error {
 		AssistLimiter:   assistLimiter,
 		Applications:    application.NewService(pool, cvStore, profiles, cvs, letters, logger),
 		ApplyLimiter:    applyLimiter,
-		Admin:           admin.Services{Stats: admin.NewStatsService(pool)},
+		Admin:           admin.Services{Stats: admin.NewStatsService(pool), Companies: admin.NewCompanyService(pool)},
 		AdminLimiter:    adminLimiter,
 	})
 	if err != nil {

@@ -106,6 +106,11 @@ func TestGenerateDraftsAndSavesALetterForTheCompany(t *testing.T) {
 			t.Errorf("prompt does not mention %q", want)
 		}
 	}
+	// Letters reason more carefully (the rules against invented facts were not always kept at "low"); reasoning
+	// tokens count in the completion budget, which must leave room for a full letter.
+	if writer.got.ReasoningEffort != ai.ReasoningMedium || writer.got.MaxTokens < 2000 {
+		t.Errorf("reasoning %q with %d tokens, want medium with room for the letter", writer.got.ReasoningEffort, writer.got.MaxTokens)
+	}
 	saved, err := service.Get(ctx, author.ID, companySlug)
 	if err != nil || saved.Content != draft {
 		t.Errorf("saved letter = %+v, %v", saved, err)
@@ -247,7 +252,9 @@ func TestAHiddenCompanyTakesNoNewLetterButKeepsTheSavedOnes(t *testing.T) {
 	if _, err := testPool.Exec(ctx, "UPDATE companies SET hidden_at = now() WHERE slug = $1", companySlug); err != nil {
 		t.Fatalf("hide: %v", err)
 	}
-	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), "UPDATE companies SET hidden_at = NULL WHERE slug = $1", companySlug) })
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), "UPDATE companies SET hidden_at = NULL WHERE slug = $1", companySlug)
+	})
 
 	if _, err := service.Save(ctx, newAuthor(t).ID, companySlug, draft); !errors.Is(err, company.ErrNotFound) {
 		t.Errorf("save for a hidden company = %v, want company.ErrNotFound", err)

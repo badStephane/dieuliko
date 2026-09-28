@@ -27,3 +27,65 @@ WHERE a.created_at >= now() - interval '30 days'
 GROUP BY c.id
 ORDER BY applications DESC, c.name
 LIMIT 10;
+
+-- Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all)
+-- and by words that must all appear in search_text (LIKE metacharacters already escaped). Keep both filters identical.
+-- name: SearchAdminCompanies :many
+SELECT slug, name, sector, city, verified, hidden_at, curated_at, source, updated_at
+FROM companies
+WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND search_text LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word)
+ORDER BY name, slug
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountAdminCompanies :one
+SELECT count(*)
+FROM companies
+WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND search_text LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word);
+
+-- name: GetAdminCompany :one
+SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
+       verified, hidden_at, curated_at, source, created_at, updated_at
+FROM companies
+WHERE slug = $1;
+
+-- Locks the listing while an edit compares it with the new values.
+-- name: LockAdminCompany :one
+SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
+       verified, hidden_at, curated_at, source, created_at, updated_at
+FROM companies
+WHERE slug = $1
+FOR UPDATE;
+
+-- name: SectorExists :one
+SELECT EXISTS (SELECT 1 FROM sectors WHERE slug = $1);
+
+-- name: CompanySlugTaken :one
+SELECT EXISTS (SELECT 1 FROM companies WHERE slug = $1);
+
+-- name: InsertAdminCompany :exec
+INSERT INTO companies (slug, name, sector, company_type, description, website, email, phone, city, address, size,
+                       social_links, source, curated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'admin', now());
+
+-- name: UpdateAdminCompany :exec
+UPDATE companies
+SET name = $2, sector = $3, company_type = $4, description = $5, website = $6, email = $7, phone = $8, city = $9,
+    address = $10, size = $11, social_links = $12, curated_at = now()
+WHERE slug = $1;
+
+-- Hiding keeps the first hiding date; showing clears it.
+-- name: SetCompanyHidden :execrows
+UPDATE companies
+SET hidden_at = CASE WHEN sqlc.arg(hidden)::bool THEN coalesce(hidden_at, now()) END
+WHERE slug = sqlc.arg(slug);
+
+-- name: SetCompanyVerified :execrows
+UPDATE companies SET verified = sqlc.arg(verified)::bool WHERE slug = sqlc.arg(slug);
+
+-- name: InsertAdminAudit :exec
+INSERT INTO admin_audit (admin_id, action, target_type, target_id, changed_fields)
+VALUES ($1, $2, $3, $4, $5);

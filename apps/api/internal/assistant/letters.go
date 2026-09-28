@@ -112,6 +112,8 @@ func (s *LetterService) Generate(ctx context.Context, author Author, slug string
 		Messages:    []ai.Message{{Role: ai.RoleSystem, Content: systemRules}, {Role: ai.RoleUser, Content: instruction}},
 		MaxTokens:   letterMaxTokens,
 		Temperature: letterTemperature,
+		// At "low", real drafts credited the candidate with tasks their profile never mentioned.
+		ReasoningEffort: ai.ReasoningMedium,
 	})
 	if err != nil {
 		return Letter{}, err

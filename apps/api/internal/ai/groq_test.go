@@ -71,6 +71,20 @@ func TestWriteSendsAChatCompletionAndReturnsTheAnswer(t *testing.T) {
 	}
 }
 
+func TestWriteUsesTheRequestedReasoningEffort(t *testing.T) {
+	server, calls := fakeGroq(t, http.StatusOK, completion)
+	careful := request
+	careful.ReasoningEffort = ReasoningMedium
+
+	if _, err := NewWriter(testConfig(server.URL)).Write(context.Background(), careful); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if got := (*calls)[0].body["reasoning_effort"]; got != "medium" {
+		t.Errorf("reasoning_effort = %v, want medium", got)
+	}
+}
+
 func TestWriteMapsProviderFailures(t *testing.T) {
 	tests := []struct {
 		name   string

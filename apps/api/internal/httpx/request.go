@@ -3,9 +3,11 @@ package httpx
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,4 +50,18 @@ func EndUserIP(isInternal func(*gin.Context) bool) func(*gin.Context) string {
 		}
 		return c.ClientIP()
 	}
+}
+
+// IntQuery reads an integer query parameter between minimum and maximum; missing or empty gives fallback. The error
+// message is shown to users (French).
+func IntQuery(c *gin.Context, name string, fallback, minimum, maximum int) (int, error) {
+	raw, ok := c.GetQuery(name)
+	if !ok || raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < minimum || value > maximum {
+		return 0, fmt.Errorf("Le paramètre « %s » doit être un entier entre %d et %d.", name, minimum, maximum)
+	}
+	return value, nil
 }

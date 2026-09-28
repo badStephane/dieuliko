@@ -7,7 +7,95 @@ package dbgen
 
 import (
 	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const companySlugTaken = `-- name: CompanySlugTaken :one
+SELECT EXISTS (SELECT 1 FROM companies WHERE slug = $1)
+`
+
+func (q *Queries) CompanySlugTaken(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, companySlugTaken, slug)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const countAdminCompanies = `-- name: CountAdminCompanies :one
+SELECT count(*)
+FROM companies
+WHERE ($1::text IS NULL OR ($1::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND search_text LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
+`
+
+type CountAdminCompaniesParams struct {
+	Status *string
+	Words  []string
+}
+
+func (q *Queries) CountAdminCompanies(ctx context.Context, arg CountAdminCompaniesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAdminCompanies, arg.Status, arg.Words)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAdminCompany = `-- name: GetAdminCompany :one
+SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
+       verified, hidden_at, curated_at, source, created_at, updated_at
+FROM companies
+WHERE slug = $1
+`
+
+type GetAdminCompanyRow struct {
+	Slug        string
+	Name        string
+	Sector      string
+	CompanyType *string
+	Description *string
+	Website     *string
+	Email       *string
+	Phone       *string
+	City        string
+	Address     *string
+	Size        *string
+	SocialLinks []byte
+	Verified    bool
+	HiddenAt    *time.Time
+	CuratedAt   *time.Time
+	Source      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) GetAdminCompany(ctx context.Context, slug string) (GetAdminCompanyRow, error) {
+	row := q.db.QueryRow(ctx, getAdminCompany, slug)
+	var i GetAdminCompanyRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Name,
+		&i.Sector,
+		&i.CompanyType,
+		&i.Description,
+		&i.Website,
+		&i.Email,
+		&i.Phone,
+		&i.City,
+		&i.Address,
+		&i.Size,
+		&i.SocialLinks,
+		&i.Verified,
+		&i.HiddenAt,
+		&i.CuratedAt,
+		&i.Source,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const getAdminStats = `-- name: GetAdminStats :one
 SELECT
@@ -67,6 +155,69 @@ func (q *Queries) GetAdminStats(ctx context.Context) (GetAdminStatsRow, error) {
 	return i, err
 }
 
+const insertAdminAudit = `-- name: InsertAdminAudit :exec
+INSERT INTO admin_audit (admin_id, action, target_type, target_id, changed_fields)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type InsertAdminAuditParams struct {
+	AdminID       pgtype.UUID
+	Action        string
+	TargetType    string
+	TargetID      string
+	ChangedFields []string
+}
+
+func (q *Queries) InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error {
+	_, err := q.db.Exec(ctx, insertAdminAudit,
+		arg.AdminID,
+		arg.Action,
+		arg.TargetType,
+		arg.TargetID,
+		arg.ChangedFields,
+	)
+	return err
+}
+
+const insertAdminCompany = `-- name: InsertAdminCompany :exec
+INSERT INTO companies (slug, name, sector, company_type, description, website, email, phone, city, address, size,
+                       social_links, source, curated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'admin', now())
+`
+
+type InsertAdminCompanyParams struct {
+	Slug        string
+	Name        string
+	Sector      string
+	CompanyType *string
+	Description *string
+	Website     *string
+	Email       *string
+	Phone       *string
+	City        string
+	Address     *string
+	Size        *string
+	SocialLinks []byte
+}
+
+func (q *Queries) InsertAdminCompany(ctx context.Context, arg InsertAdminCompanyParams) error {
+	_, err := q.db.Exec(ctx, insertAdminCompany,
+		arg.Slug,
+		arg.Name,
+		arg.Sector,
+		arg.CompanyType,
+		arg.Description,
+		arg.Website,
+		arg.Email,
+		arg.Phone,
+		arg.City,
+		arg.Address,
+		arg.Size,
+		arg.SocialLinks,
+	)
+	return err
+}
+
 const listTopCompaniesByApplications = `-- name: ListTopCompaniesByApplications :many
 SELECT c.slug, c.name, c.city, count(*) AS applications
 FROM applications a
@@ -108,4 +259,214 @@ func (q *Queries) ListTopCompaniesByApplications(ctx context.Context) ([]ListTop
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAdminCompany = `-- name: LockAdminCompany :one
+SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
+       verified, hidden_at, curated_at, source, created_at, updated_at
+FROM companies
+WHERE slug = $1
+FOR UPDATE
+`
+
+type LockAdminCompanyRow struct {
+	Slug        string
+	Name        string
+	Sector      string
+	CompanyType *string
+	Description *string
+	Website     *string
+	Email       *string
+	Phone       *string
+	City        string
+	Address     *string
+	Size        *string
+	SocialLinks []byte
+	Verified    bool
+	HiddenAt    *time.Time
+	CuratedAt   *time.Time
+	Source      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// Locks the listing while an edit compares it with the new values.
+func (q *Queries) LockAdminCompany(ctx context.Context, slug string) (LockAdminCompanyRow, error) {
+	row := q.db.QueryRow(ctx, lockAdminCompany, slug)
+	var i LockAdminCompanyRow
+	err := row.Scan(
+		&i.Slug,
+		&i.Name,
+		&i.Sector,
+		&i.CompanyType,
+		&i.Description,
+		&i.Website,
+		&i.Email,
+		&i.Phone,
+		&i.City,
+		&i.Address,
+		&i.Size,
+		&i.SocialLinks,
+		&i.Verified,
+		&i.HiddenAt,
+		&i.CuratedAt,
+		&i.Source,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const searchAdminCompanies = `-- name: SearchAdminCompanies :many
+SELECT slug, name, sector, city, verified, hidden_at, curated_at, source, updated_at
+FROM companies
+WHERE ($1::text IS NULL OR ($1::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND search_text LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
+ORDER BY name, slug
+LIMIT $4 OFFSET $3
+`
+
+type SearchAdminCompaniesParams struct {
+	Status    *string
+	Words     []string
+	RowOffset int32
+	RowLimit  int32
+}
+
+type SearchAdminCompaniesRow struct {
+	Slug      string
+	Name      string
+	Sector    string
+	City      string
+	Verified  bool
+	HiddenAt  *time.Time
+	CuratedAt *time.Time
+	Source    string
+	UpdatedAt time.Time
+}
+
+// Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all)
+// and by words that must all appear in search_text (LIKE metacharacters already escaped). Keep both filters identical.
+func (q *Queries) SearchAdminCompanies(ctx context.Context, arg SearchAdminCompaniesParams) ([]SearchAdminCompaniesRow, error) {
+	rows, err := q.db.Query(ctx, searchAdminCompanies,
+		arg.Status,
+		arg.Words,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchAdminCompaniesRow
+	for rows.Next() {
+		var i SearchAdminCompaniesRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Sector,
+			&i.City,
+			&i.Verified,
+			&i.HiddenAt,
+			&i.CuratedAt,
+			&i.Source,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sectorExists = `-- name: SectorExists :one
+SELECT EXISTS (SELECT 1 FROM sectors WHERE slug = $1)
+`
+
+func (q *Queries) SectorExists(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, sectorExists, slug)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const setCompanyHidden = `-- name: SetCompanyHidden :execrows
+UPDATE companies
+SET hidden_at = CASE WHEN $1::bool THEN coalesce(hidden_at, now()) END
+WHERE slug = $2
+`
+
+type SetCompanyHiddenParams struct {
+	Hidden bool
+	Slug   string
+}
+
+// Hiding keeps the first hiding date; showing clears it.
+func (q *Queries) SetCompanyHidden(ctx context.Context, arg SetCompanyHiddenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCompanyHidden, arg.Hidden, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setCompanyVerified = `-- name: SetCompanyVerified :execrows
+UPDATE companies SET verified = $1::bool WHERE slug = $2
+`
+
+type SetCompanyVerifiedParams struct {
+	Verified bool
+	Slug     string
+}
+
+func (q *Queries) SetCompanyVerified(ctx context.Context, arg SetCompanyVerifiedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCompanyVerified, arg.Verified, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateAdminCompany = `-- name: UpdateAdminCompany :exec
+UPDATE companies
+SET name = $2, sector = $3, company_type = $4, description = $5, website = $6, email = $7, phone = $8, city = $9,
+    address = $10, size = $11, social_links = $12, curated_at = now()
+WHERE slug = $1
+`
+
+type UpdateAdminCompanyParams struct {
+	Slug        string
+	Name        string
+	Sector      string
+	CompanyType *string
+	Description *string
+	Website     *string
+	Email       *string
+	Phone       *string
+	City        string
+	Address     *string
+	Size        *string
+	SocialLinks []byte
+}
+
+func (q *Queries) UpdateAdminCompany(ctx context.Context, arg UpdateAdminCompanyParams) error {
+	_, err := q.db.Exec(ctx, updateAdminCompany,
+		arg.Slug,
+		arg.Name,
+		arg.Sector,
+		arg.CompanyType,
+		arg.Description,
+		arg.Website,
+		arg.Email,
+		arg.Phone,
+		arg.City,
+		arg.Address,
+		arg.Size,
+		arg.SocialLinks,
+	)
+	return err
 }

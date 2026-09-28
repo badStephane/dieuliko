@@ -48,11 +48,19 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-// Request asks for one answer; MaxTokens bounds its length (and the tokens spent).
+// Reasoning efforts: more reasoning follows the instructions more closely, at the cost of time and tokens.
+const (
+	ReasoningLow    = "low"
+	ReasoningMedium = "medium"
+)
+
+// Request asks for one answer; MaxTokens bounds its length (and the tokens spent, reasoning included).
 type Request struct {
 	Messages    []Message
 	MaxTokens   int
 	Temperature float64
+	// ReasoningEffort is ReasoningLow when empty.
+	ReasoningEffort string
 }
 
 // Writer produces text from a conversation.
@@ -116,10 +124,14 @@ func (g *groq) Write(ctx context.Context, req Request) (string, error) {
 	if !g.limiter.Allow() {
 		return "", fmt.Errorf("%w: global budget spent", ErrBusy)
 	}
-	// Reasoning stays hidden (only the final text is returned) and short, to spare time and tokens.
+	// Reasoning stays hidden (only the final text is returned), and short unless the caller needs more care.
+	effort := req.ReasoningEffort
+	if effort == "" {
+		effort = ReasoningLow
+	}
 	payload, err := json.Marshal(chatRequest{
 		Model: g.cfg.Model, Messages: req.Messages, Temperature: req.Temperature, MaxTokens: req.MaxTokens,
-		ReasoningFormat: "hidden", ReasoningEffort: "low",
+		ReasoningFormat: "hidden", ReasoningEffort: effort,
 	})
 	if err != nil {
 		return "", fmt.Errorf("ai: encode request: %w", err)
