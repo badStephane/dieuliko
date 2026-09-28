@@ -197,3 +197,74 @@ func TestHideAndVerifyRoutes(t *testing.T) {
 		t.Errorf("missing flag: status %d, want 422", rec.Code)
 	}
 }
+
+// fakeAccounts records calls; err applies to every call.
+type fakeAccounts struct {
+	err        error
+	gotAdmin   uuid.UUID
+	gotID      uuid.UUID
+	gotFilters CandidateFilters
+	gotFlag    *bool
+	gotConfirm string
+}
+
+var candidateID = uuid.MustParse("00000000-0000-0000-0000-00000000000c")
+
+func (f *fakeAccounts) Search(_ context.Context, filters CandidateFilters, _, _ int) (CandidatePage, error) {
+	f.gotFilters = filters
+	return CandidatePage{Items: []CandidateSummary{{ID: candidateID}}, Total: 1}, f.err
+}
+
+func (f *fakeAccounts) Get(_ context.Context, id uuid.UUID) (CandidateDetail, error) {
+	f.gotID = id
+	return CandidateDetail{CandidateSummary: CandidateSummary{ID: id}}, f.err
+}
+
+func (f *fakeAccounts) SetSuspended(_ context.Context, adminID, id uuid.UUID, suspended bool) (CandidateDetail, error) {
+	f.gotAdmin, f.gotID, f.gotFlag = adminID, id, &suspended
+	return CandidateDetail{CandidateSummary: CandidateSummary{ID: id}}, f.err
+}
+
+func (f *fakeAccounts) Delete(_ context.Context, adminID, id uuid.UUID, confirmEmail string) error {
+	f.gotAdmin, f.gotID, f.gotConfirm = adminID, id, confirmEmail
+	return f.err
+}
+
+func TestCandidateRoutes(t *testing.T) {
+	accounts := &fakeAccounts{}
+	router := newRouter(Services{Accounts: accounts})
+	path := "/v1/admin/candidates/" + candidateID.String()
+
+	if rec := send(router, http.MethodGet, "/v1/admin/candidates?q=awa&status=suspended", adminToken, ""); rec.Code != http.StatusOK ||
+		accounts.gotFilters != (CandidateFilters{Query: "awa", Status: CandidateSuspended}) {
+		t.Errorf("list: status %d filters %+v", rec.Code, accounts.gotFilters)
+	}
+	if rec := send(router, http.MethodGet, "/v1/admin/candidates?status=banni", adminToken, ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("bad status: %d, want 400", rec.Code)
+	}
+	if rec := send(router, http.MethodGet, path, adminToken, ""); rec.Code != http.StatusOK || accounts.gotID != candidateID {
+		t.Errorf("get: status %d id %s", rec.Code, accounts.gotID)
+	}
+	if rec := send(router, http.MethodPut, path+"/suspension", adminToken, `{"suspended":true}`); rec.Code != http.StatusOK || accounts.gotAdmin != adminID || !*accounts.gotFlag {
+		t.Errorf("suspend: status %d admin %s", rec.Code, accounts.gotAdmin)
+	}
+	if rec := send(router, http.MethodPost, path+"/deletion", adminToken, `{"confirmEmail":"awa@example.sn"}`); rec.Code != http.StatusOK || accounts.gotConfirm != "awa@example.sn" {
+		t.Errorf("delete: status %d confirm %q", rec.Code, accounts.gotConfirm)
+	}
+	if rec := send(router, http.MethodGet, "/v1/admin/candidates/pas-un-uuid", adminToken, ""); rec.Code != http.StatusNotFound {
+		t.Errorf("malformed id: status %d, want 404", rec.Code)
+	}
+}
+
+func TestCandidateErrorsAreMapped(t *testing.T) {
+	path := "/v1/admin/candidates/" + candidateID.String()
+
+	if rec := send(newRouter(Services{Accounts: &fakeAccounts{err: ErrCandidateNotFound}}), http.MethodGet, path, adminToken, ""); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown: status %d, want 404", rec.Code)
+	}
+	mismatch := &ValidationError{Fields: map[string]string{"confirmEmail": "Recopiez exactement l’adresse email du compte."}}
+	rec := send(newRouter(Services{Accounts: &fakeAccounts{err: mismatch}}), http.MethodPost, path+"/deletion", adminToken, `{"confirmEmail":"x"}`)
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "confirmEmail") {
+		t.Errorf("mismatch: status %d body %s", rec.Code, rec.Body.String())
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -42,6 +43,8 @@ const (
 	aiTimeout = 25 * time.Second
 	// cleanupInterval is how often expired sessions and email tokens are deleted.
 	cleanupInterval = time.Hour
+	// contactPath is the web page linked from the notices sent to candidates about their account.
+	contactPath = "/contact"
 )
 
 func main() {
@@ -127,8 +130,12 @@ func run() error {
 		AssistLimiter:   assistLimiter,
 		Applications:    application.NewService(pool, cvStore, profiles, cvs, letters, logger),
 		ApplyLimiter:    applyLimiter,
-		Admin:           admin.Services{Stats: admin.NewStatsService(pool), Companies: admin.NewCompanyService(pool)},
-		AdminLimiter:    adminLimiter,
+		Admin: admin.Services{
+			Stats:     admin.NewStatsService(pool),
+			Companies: admin.NewCompanyService(pool),
+			Accounts:  admin.NewAccountService(pool, cvStore, mailer, logger, strings.TrimRight(cfg.AppBaseURL, "/")+contactPath),
+		},
+		AdminLimiter: adminLimiter,
 	})
 	if err != nil {
 		return err

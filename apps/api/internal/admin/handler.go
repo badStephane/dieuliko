@@ -29,6 +29,7 @@ type StatsReader interface {
 type Services struct {
 	Stats     StatsReader
 	Companies CompanyManager
+	Accounts  AccountManager
 }
 
 // NewLimiter budgets back-office changes per admin; idle buckets are kept for idleTTL.
@@ -61,6 +62,7 @@ func (h *Handler) Register(group *gin.RouterGroup, requireUser gin.HandlerFunc) 
 	admin := group.Group("/admin", requireUser, RequireAdmin)
 	admin.GET("/stats", h.stats)
 	h.registerCompanies(admin)
+	h.registerAccounts(admin)
 }
 
 func (h *Handler) stats(c *gin.Context) {

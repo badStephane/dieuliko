@@ -167,6 +167,8 @@ func writeError(c *gin.Context, err error) {
 		httpx.FailFields(c, http.StatusUnprocessableEntity, httpx.CodeValidation, "Certains champs sont invalides.", validation.Fields)
 	case errors.Is(err, company.ErrNotFound):
 		httpx.Fail(c, http.StatusNotFound, httpx.CodeNotFound, "Entreprise introuvable.")
+	case errors.Is(err, ErrCandidateNotFound):
+		httpx.Fail(c, http.StatusNotFound, httpx.CodeNotFound, "Candidat introuvable.")
 	default:
 		httpx.InternalError(c, err)
 	}

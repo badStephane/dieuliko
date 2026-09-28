@@ -89,3 +89,60 @@ UPDATE companies SET verified = sqlc.arg(verified)::bool WHERE slug = sqlc.arg(s
 -- name: InsertAdminAudit :exec
 INSERT INTO admin_audit (admin_id, action, target_type, target_id, changed_fields)
 VALUES ($1, $2, $3, $4, $5);
+
+-- Back-office candidate search, newest first: status 'active' / 'suspended' (NULL = all) and words that must all
+-- appear in the name or email (LIKE metacharacters already escaped). Keep both filters identical. Admins are never listed.
+-- name: SearchAdminCandidates :many
+SELECT id, email::text AS email, first_name, last_name, email_verified_at, suspended_at, created_at
+FROM users
+WHERE role = 'candidate'
+  AND (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word)
+ORDER BY created_at DESC, id
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountAdminCandidates :one
+SELECT count(*)
+FROM users
+WHERE role = 'candidate'
+  AND (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word);
+
+-- What the back-office may know about a candidate: account status, whether each piece exists, and counts. Never the
+-- content of the profile, CV, letters or applications. "Has profile" mirrors candidate.Profile.HasContent.
+-- name: GetAdminCandidate :one
+SELECT u.id, u.email::text AS email, u.first_name, u.last_name, u.email_verified_at, u.suspended_at, u.created_at,
+       EXISTS (SELECT 1 FROM candidate_profiles p WHERE p.user_id = u.id
+               AND (p.headline <> '' OR cardinality(p.skills) > 0
+                    OR EXISTS (SELECT 1 FROM candidate_experiences e WHERE e.user_id = u.id)
+                    OR EXISTS (SELECT 1 FROM candidate_educations d WHERE d.user_id = u.id))) AS has_profile,
+       EXISTS (SELECT 1 FROM candidate_cvs cv WHERE cv.user_id = u.id) AS has_cv,
+       (SELECT count(*) FROM cover_letters l WHERE l.user_id = u.id) AS letters,
+       (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'sent') AS applications_sent,
+       (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'withdrawn') AS applications_withdrawn
+FROM users u
+WHERE u.id = $1 AND u.role = 'candidate';
+
+-- Serializes changes to one candidate account; admins are out of reach.
+-- name: LockCandidate :one
+SELECT email::text AS email, first_name, suspended_at
+FROM users
+WHERE id = $1 AND role = 'candidate'
+FOR UPDATE;
+
+-- name: SetUserSuspended :exec
+UPDATE users
+SET suspended_at = CASE WHEN sqlc.arg(suspended)::bool THEN coalesce(suspended_at, now()) END
+WHERE id = sqlc.arg(id);
+
+-- Every stored file of a candidate: the current CV and the CV copies of applications.
+-- name: ListCandidateObjectKeys :many
+SELECT cv.object_key FROM candidate_cvs cv WHERE cv.user_id = sqlc.arg(user_id)::uuid
+UNION ALL
+SELECT a.cv_object_key FROM applications a WHERE a.user_id = sqlc.arg(user_id)::uuid AND a.cv_object_key IS NOT NULL;
+
+-- Cascades to sessions, tokens, profile, CV metadata, letters and applications.
+-- name: DeleteCandidate :execrows
+DELETE FROM users WHERE id = $1 AND role = 'candidate';

@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -21,6 +22,27 @@ func (q *Queries) CompanySlugTaken(ctx context.Context, slug string) (bool, erro
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const countAdminCandidates = `-- name: CountAdminCandidates :one
+SELECT count(*)
+FROM users
+WHERE role = 'candidate'
+  AND ($1::text IS NULL OR ($1::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
+`
+
+type CountAdminCandidatesParams struct {
+	Status *string
+	Words  []string
+}
+
+func (q *Queries) CountAdminCandidates(ctx context.Context, arg CountAdminCandidatesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAdminCandidates, arg.Status, arg.Words)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countAdminCompanies = `-- name: CountAdminCompanies :one
@@ -41,6 +63,70 @@ func (q *Queries) CountAdminCompanies(ctx context.Context, arg CountAdminCompani
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteCandidate = `-- name: DeleteCandidate :execrows
+DELETE FROM users WHERE id = $1 AND role = 'candidate'
+`
+
+// Cascades to sessions, tokens, profile, CV metadata, letters and applications.
+func (q *Queries) DeleteCandidate(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCandidate, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getAdminCandidate = `-- name: GetAdminCandidate :one
+SELECT u.id, u.email::text AS email, u.first_name, u.last_name, u.email_verified_at, u.suspended_at, u.created_at,
+       EXISTS (SELECT 1 FROM candidate_profiles p WHERE p.user_id = u.id
+               AND (p.headline <> '' OR cardinality(p.skills) > 0
+                    OR EXISTS (SELECT 1 FROM candidate_experiences e WHERE e.user_id = u.id)
+                    OR EXISTS (SELECT 1 FROM candidate_educations d WHERE d.user_id = u.id))) AS has_profile,
+       EXISTS (SELECT 1 FROM candidate_cvs cv WHERE cv.user_id = u.id) AS has_cv,
+       (SELECT count(*) FROM cover_letters l WHERE l.user_id = u.id) AS letters,
+       (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'sent') AS applications_sent,
+       (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'withdrawn') AS applications_withdrawn
+FROM users u
+WHERE u.id = $1 AND u.role = 'candidate'
+`
+
+type GetAdminCandidateRow struct {
+	ID                    uuid.UUID
+	Email                 string
+	FirstName             string
+	LastName              string
+	EmailVerifiedAt       *time.Time
+	SuspendedAt           *time.Time
+	CreatedAt             time.Time
+	HasProfile            bool
+	HasCv                 bool
+	Letters               int64
+	ApplicationsSent      int64
+	ApplicationsWithdrawn int64
+}
+
+// What the back-office may know about a candidate: account status, whether each piece exists, and counts. Never the
+// content of the profile, CV, letters or applications. "Has profile" mirrors candidate.Profile.HasContent.
+func (q *Queries) GetAdminCandidate(ctx context.Context, id uuid.UUID) (GetAdminCandidateRow, error) {
+	row := q.db.QueryRow(ctx, getAdminCandidate, id)
+	var i GetAdminCandidateRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FirstName,
+		&i.LastName,
+		&i.EmailVerifiedAt,
+		&i.SuspendedAt,
+		&i.CreatedAt,
+		&i.HasProfile,
+		&i.HasCv,
+		&i.Letters,
+		&i.ApplicationsSent,
+		&i.ApplicationsWithdrawn,
+	)
+	return i, err
 }
 
 const getAdminCompany = `-- name: GetAdminCompany :one
@@ -218,6 +304,33 @@ func (q *Queries) InsertAdminCompany(ctx context.Context, arg InsertAdminCompany
 	return err
 }
 
+const listCandidateObjectKeys = `-- name: ListCandidateObjectKeys :many
+SELECT cv.object_key FROM candidate_cvs cv WHERE cv.user_id = $1::uuid
+UNION ALL
+SELECT a.cv_object_key FROM applications a WHERE a.user_id = $1::uuid AND a.cv_object_key IS NOT NULL
+`
+
+// Every stored file of a candidate: the current CV and the CV copies of applications.
+func (q *Queries) ListCandidateObjectKeys(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listCandidateObjectKeys, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var object_key string
+		if err := rows.Scan(&object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTopCompaniesByApplications = `-- name: ListTopCompaniesByApplications :many
 SELECT c.slug, c.name, c.city, count(*) AS applications
 FROM applications a
@@ -315,6 +428,90 @@ func (q *Queries) LockAdminCompany(ctx context.Context, slug string) (LockAdminC
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const lockCandidate = `-- name: LockCandidate :one
+SELECT email::text AS email, first_name, suspended_at
+FROM users
+WHERE id = $1 AND role = 'candidate'
+FOR UPDATE
+`
+
+type LockCandidateRow struct {
+	Email       string
+	FirstName   string
+	SuspendedAt *time.Time
+}
+
+// Serializes changes to one candidate account; admins are out of reach.
+func (q *Queries) LockCandidate(ctx context.Context, id uuid.UUID) (LockCandidateRow, error) {
+	row := q.db.QueryRow(ctx, lockCandidate, id)
+	var i LockCandidateRow
+	err := row.Scan(&i.Email, &i.FirstName, &i.SuspendedAt)
+	return i, err
+}
+
+const searchAdminCandidates = `-- name: SearchAdminCandidates :many
+SELECT id, email::text AS email, first_name, last_name, email_verified_at, suspended_at, created_at
+FROM users
+WHERE role = 'candidate'
+  AND ($1::text IS NULL OR ($1::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
+ORDER BY created_at DESC, id
+LIMIT $4 OFFSET $3
+`
+
+type SearchAdminCandidatesParams struct {
+	Status    *string
+	Words     []string
+	RowOffset int32
+	RowLimit  int32
+}
+
+type SearchAdminCandidatesRow struct {
+	ID              uuid.UUID
+	Email           string
+	FirstName       string
+	LastName        string
+	EmailVerifiedAt *time.Time
+	SuspendedAt     *time.Time
+	CreatedAt       time.Time
+}
+
+// Back-office candidate search, newest first: status 'active' / 'suspended' (NULL = all) and words that must all
+// appear in the name or email (LIKE metacharacters already escaped). Keep both filters identical. Admins are never listed.
+func (q *Queries) SearchAdminCandidates(ctx context.Context, arg SearchAdminCandidatesParams) ([]SearchAdminCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, searchAdminCandidates,
+		arg.Status,
+		arg.Words,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchAdminCandidatesRow
+	for rows.Next() {
+		var i SearchAdminCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.EmailVerifiedAt,
+			&i.SuspendedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const searchAdminCompanies = `-- name: SearchAdminCompanies :many
@@ -429,6 +626,22 @@ func (q *Queries) SetCompanyVerified(ctx context.Context, arg SetCompanyVerified
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const setUserSuspended = `-- name: SetUserSuspended :exec
+UPDATE users
+SET suspended_at = CASE WHEN $1::bool THEN coalesce(suspended_at, now()) END
+WHERE id = $2
+`
+
+type SetUserSuspendedParams struct {
+	Suspended bool
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetUserSuspended(ctx context.Context, arg SetUserSuspendedParams) error {
+	_, err := q.db.Exec(ctx, setUserSuspended, arg.Suspended, arg.ID)
+	return err
 }
 
 const updateAdminCompany = `-- name: UpdateAdminCompany :exec

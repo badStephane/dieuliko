@@ -20,7 +20,8 @@ import (
 const MaxLetterLength = 5000
 
 const (
-	letterMaxTokens   = 1200
+	// letterMaxTokens covers the hidden reasoning as well as the ~500-token letter.
+	letterMaxTokens   = 2500
 	letterTemperature = 0.6
 	// maxDescriptionInPrompt keeps a long directory description from crowding out the profile.
 	maxDescriptionInPrompt = 600
