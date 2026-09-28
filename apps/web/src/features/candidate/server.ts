@@ -1,8 +1,6 @@
 import "server-only";
-import { redirect } from "next/navigation";
-import { CANDIDATE_HOME_PATH, loginHref } from "@/features/auth/redirects";
-import { requestContext } from "@/features/auth/server";
-import { ApiError } from "@/lib/api-client";
+import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
+import { redirectOnLostSession, requestContext } from "@/features/auth/server";
 import { getServerApiClient } from "@/lib/server-api";
 import { z } from "zod";
 import { createCandidateApi, type Application, type ApplicationDetail, type CandidateApi, type Cv, type Letter } from "./candidate-api";
@@ -13,14 +11,7 @@ export function getCandidateApi(): CandidateApi {
   return createCandidateApi(getServerApiClient());
 }
 
-export function isLostSession(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "unauthenticated";
-}
-
-/** Sends a candidate whose session expired back to the login page, then to `returnTo`. */
-export function redirectOnLostSession(error: unknown, returnTo: string): void {
-  if (isLostSession(error)) redirect(loginHref(returnTo));
-}
+export { isLostSession, redirectOnLostSession } from "@/features/auth/server";
 
 export interface CandidateSpace {
   readonly profile: Profile;

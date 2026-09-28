@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
-import type { RequestOptions } from "@/lib/api-client";
+import { ApiError, type RequestOptions } from "@/lib/api-client";
 import { getServerApiClient } from "@/lib/server-api";
 import { createAuthApi, type AuthApi, type User } from "./auth-api";
 import { loginHref } from "./redirects";
@@ -57,6 +57,15 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   if (!context.bearer) return null;
   return getAuthApi().currentUser(context);
 });
+
+export function isLostSession(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "unauthenticated";
+}
+
+/** Sends a user whose session expired back to the login page, then to `returnTo`. */
+export function redirectOnLostSession(error: unknown, returnTo: string): void {
+  if (isLostSession(error)) redirect(loginHref(returnTo));
+}
 
 /** Protects a page: redirects to the login page (then back to `returnTo`) when logged out. */
 export async function requireUser(returnTo: string): Promise<User> {
