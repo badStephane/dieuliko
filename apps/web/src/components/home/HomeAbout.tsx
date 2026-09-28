@@ -59,7 +59,7 @@ function AboutPhoto() {
     <div className="relative mt-10 aspect-[350/400] w-full overflow-hidden rounded-[4px] tab:mt-[50px] tab:aspect-[940/700] desk:mt-0 desk:aspect-auto desk:h-[520px] desk:flex-1">
       <Image
         src="/images/BvM3IhLdLtLgbgXP1Z8mREPpqEg.png"
-        alt="Jeune femme souriante travaillant sur un ordinateur portable"
+        alt="Jeune homme souriant travaillant sur un ordinateur portable, un drapeau du Sénégal au mur"
         fill
         sizes="(min-width: 1200px) 560px, 100vw"
         className="object-cover"

@@ -62,7 +62,7 @@ function CompanyImage() {
     <div className="relative h-[461px] w-full overflow-hidden rounded-[4px] tab:h-auto tab:aspect-[346/461] desk:aspect-auto desk:h-[461px] desk:w-[346px] desk:shrink-0">
       <Image
         src="/images/BvM3IhLdLtLgbgXP1Z8mREPpqEg.png"
-        alt="Une jeune femme sourit en travaillant sur son ordinateur portable"
+        alt="Un jeune homme sourit en travaillant sur son ordinateur portable, un drapeau du Sénégal au mur"
         fill
         sizes="(min-width: 1200px) 346px, 100vw"
         className="object-cover"
