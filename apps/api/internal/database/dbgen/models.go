@@ -10,6 +10,23 @@ import (
 	"github.com/google/uuid"
 )
 
+type Application struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	CompanyID   uuid.UUID
+	Status      string
+	FirstName   *string
+	LastName    *string
+	Email       *string
+	Profile     []byte
+	Letter      *string
+	CvObjectKey *string
+	CvFileName  *string
+	CvSizeBytes *int32
+	CreatedAt   time.Time
+	WithdrawnAt *time.Time
+}
+
 type CandidateCv struct {
 	UserID     uuid.UUID
 	ObjectKey  string
