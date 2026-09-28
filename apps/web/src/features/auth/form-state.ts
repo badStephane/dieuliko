@@ -24,6 +24,8 @@ const USER_FACING_CODES: ReadonlySet<string> = new Set([
   "rate_limited",
   "email_delivery_failed",
   "unauthenticated",
+  "forbidden",
+  "no_cv",
 ]);
 
 /** Turns a failed call into form feedback; unexpected failures get a generic message. */

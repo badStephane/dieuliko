@@ -46,7 +46,15 @@ export interface ApiClient {
   get(path: string, options?: RequestOptions): Promise<ApiResponse | null>;
   /** POST a JSON body; every non-2xx answer throws an ApiError. */
   post(path: string, body?: unknown, options?: RequestOptions): Promise<ApiResponse>;
+  /** PUT a JSON body, or a FormData sent as multipart; every non-2xx answer throws an ApiError. */
+  put(path: string, body: unknown, options?: RequestOptions): Promise<ApiResponse>;
+  /** DELETE; every non-2xx answer throws an ApiError. */
+  delete(path: string, options?: RequestOptions): Promise<ApiResponse>;
+  /** GET a file: the raw response to stream, `null` on 404; other failures throw an ApiError. */
+  download(path: string, options?: RequestOptions): Promise<Response | null>;
 }
+
+type Method = "GET" | "POST" | "PUT" | "DELETE";
 
 /** Directory data changes rarely; profiles are refreshed daily (a shorter fetch lifetime would lower it). */
 export const DEFAULT_REVALIDATE_SECONDS = 86400;
@@ -83,32 +91,37 @@ export function createApiClient(baseUrl: string, options: ApiClientOptions = {})
   const { token, revalidateSeconds = DEFAULT_REVALIDATE_SECONDS, fetchImpl = fetch } = options;
   const root = `${baseUrl.replace(/\/+$/, "")}/v1`;
 
-  function headersFor(request: RequestOptions, hasBody: boolean): Record<string, string> {
+  function headersFor(request: RequestOptions, isJsonBody: boolean): Record<string, string> {
     return {
       Accept: "application/json",
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(isJsonBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { "X-Internal-Token": token } : {}),
       ...(request.bearer ? { Authorization: `Bearer ${request.bearer}` } : {}),
       ...(request.clientIp ? { "X-Client-IP": request.clientIp } : {}),
     };
   }
 
-  async function send(method: "GET" | "POST", path: string, body: unknown, request: RequestOptions): Promise<RawResult> {
+  /** Sends the request; FormData goes out as multipart (fetch sets its boundary), anything else as JSON. */
+  async function fetchRaw(method: Method, path: string, body: unknown, request: RequestOptions) {
     const search = new URLSearchParams(request.params ?? {}).toString();
     const url = `${root}${path}${search ? `?${search}` : ""}`;
     const cacheable = method === "GET" && !request.bearer;
+    const isForm = body instanceof FormData;
     const init: RequestInit = {
       method,
-      headers: headersFor(request, body !== undefined),
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      headers: headersFor(request, body !== undefined && !isForm),
+      ...(body !== undefined ? { body: isForm ? body : JSON.stringify(body) } : {}),
       ...(cacheable ? { next: { revalidate: revalidateSeconds } } : { cache: "no-store" }),
     };
-    let response: Response;
     try {
-      response = await fetchImpl(url, init);
+      return { url, response: await fetchImpl(url, init) };
     } catch (error: unknown) {
       throw new ApiError(`${method} ${url} failed: ${describe(error)}`, 0, "unavailable");
     }
+  }
+
+  async function send(method: Method, path: string, body: unknown, request: RequestOptions): Promise<RawResult> {
+    const { url, response } = await fetchRaw(method, path, body, request);
     const payload: unknown = await response.json().catch(() => null);
     return { url, response, payload };
   }
@@ -120,6 +133,20 @@ export function createApiClient(baseUrl: string, options: ApiClientOptions = {})
     },
     async post(path, body, request = {}) {
       return toApiResponse("POST", await send("POST", path, body, request));
+    },
+    async put(path, body, request = {}) {
+      return toApiResponse("PUT", await send("PUT", path, body, request));
+    },
+    async delete(path, request = {}) {
+      return toApiResponse("DELETE", await send("DELETE", path, undefined, request));
+    },
+    async download(path, request = {}) {
+      const { url, response } = await fetchRaw("GET", path, undefined, request);
+      if (response.ok) return response;
+      if (response.status === 404) return null;
+      const payload: unknown = await response.json().catch(() => null);
+      toApiResponse("GET", { url, response, payload }); // throws the API error
+      return null;
     },
   };
 }

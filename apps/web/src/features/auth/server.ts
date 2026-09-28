@@ -3,7 +3,8 @@ import { isIP } from "node:net";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { ApiError, createApiClient, type RequestOptions } from "@/lib/api-client";
+import type { RequestOptions } from "@/lib/api-client";
+import { getServerApiClient } from "@/lib/server-api";
 import { createAuthApi, type AuthApi, type User } from "./auth-api";
 import { loginHref } from "./redirects";
 
@@ -12,10 +13,7 @@ export const SESSION_COOKIE = "dieuliko_session";
 
 /** Auth needs the Go API; without `DIEULIKO_API_URL` every call fails as "unavailable". */
 export function getAuthApi(): AuthApi {
-  const apiUrl = process.env.DIEULIKO_API_URL?.trim();
-  if (!apiUrl) throw new ApiError("DIEULIKO_API_URL is not set", 0, "unavailable");
-  const token = process.env.DIEULIKO_API_TOKEN?.trim();
-  return createAuthApi(createApiClient(apiUrl, token ? { token } : {}));
+  return createAuthApi(getServerApiClient());
 }
 
 /**

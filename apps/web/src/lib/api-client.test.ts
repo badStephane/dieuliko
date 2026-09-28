@@ -108,6 +108,60 @@ describe("createApiClient", () => {
   });
 });
 
+describe("createApiClient writes and downloads", () => {
+  it("PUTs JSON and DELETEs for a user, never cached", async () => {
+    const { fetchImpl, calls } = recordingFetch(ok);
+    const client = createApiClient("http://api.test", { fetchImpl });
+
+    await client.put("/me/profile", { headline: "Comptable" }, { bearer: "tok" });
+    await client.delete("/me/cv", { bearer: "tok" });
+
+    expect(calls[0]?.init).toMatchObject({
+      method: "PUT",
+      body: JSON.stringify({ headline: "Comptable" }),
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer tok" },
+    });
+    expect(calls[1]?.init).toMatchObject({ method: "DELETE", cache: "no-store" });
+    expect(calls[1]?.init.body).toBeUndefined();
+  });
+
+  it("sends FormData as multipart, letting fetch set the boundary", async () => {
+    const { fetchImpl, calls } = recordingFetch(ok);
+    const form = new FormData();
+    form.set("file", new Blob(["%PDF-1.7"], { type: "application/pdf" }), "cv.pdf");
+
+    await createApiClient("http://api.test", { fetchImpl }).put("/me/cv", form, { bearer: "tok" });
+
+    expect(calls[0]?.init.body).toBe(form);
+    expect(calls[0]?.init.headers).not.toHaveProperty("Content-Type");
+  });
+
+  it("downloads a file as a raw response, null on 404", async () => {
+    const pdf = () => new Response("%PDF-1.7", { status: 200, headers: { "Content-Type": "application/pdf" } });
+    const { fetchImpl, calls } = recordingFetch(pdf);
+    const client = createApiClient("http://api.test", { fetchImpl });
+
+    const response = await client.download("/me/cv/file", { bearer: "tok" });
+
+    expect(await response?.text()).toBe("%PDF-1.7");
+    expect(calls[0]?.init).toMatchObject({ method: "GET", cache: "no-store", headers: { Authorization: "Bearer tok" } });
+    const missing = recordingFetch(() => jsonResponse(404, { success: false, data: null, error: { code: "no_cv", message: "Pas de CV." } }));
+    expect(await createApiClient("http://api.test", { fetchImpl: missing.fetchImpl }).download("/me/cv/file")).toBeNull();
+  });
+
+  it("throws the API error when a download fails", async () => {
+    const { fetchImpl } = recordingFetch(() =>
+      jsonResponse(401, { success: false, data: null, error: { code: "unauthenticated", message: "Session expirée." } }),
+    );
+
+    await expect(createApiClient("http://api.test", { fetchImpl }).download("/me/cv/file")).rejects.toMatchObject({
+      status: 401,
+      code: "unauthenticated",
+    });
+  });
+});
+
 describe("parseApiData / requireResponse", () => {
   const response = { data: { n: 1 }, meta: { total: 2 }, status: 200 };
 
