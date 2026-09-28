@@ -63,6 +63,7 @@ function SentNotice({ application, companyName }: { readonly application: Applic
           espace.
         </span>
       </p>
+      <p className="text-[15px] leading-[22px] text-muted">Modifier la lettre ci-dessus ne change plus la candidature envoyée.</p>
       <Link href={applicationPath(application.id)} className="self-start text-[16px] font-semibold text-ink underline underline-offset-4">
         Voir ma candidature
       </Link>

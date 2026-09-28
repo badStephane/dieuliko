@@ -127,6 +127,7 @@ export async function applyAction(slug: unknown): Promise<ApplicationResult> {
   try {
     const application = await getCandidateApi().apply(parsed.data, await requestContext());
     revalidatePath(CANDIDATE_HOME_PATH);
+    revalidatePath(letterPath(parsed.data));
     return { status: "success", application };
   } catch (error: unknown) {
     redirectOnLostSession(error, letterPath(parsed.data));
