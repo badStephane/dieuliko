@@ -12,7 +12,9 @@ CREATE TABLE applications (
     first_name    text CHECK (first_name <> ''),
     last_name     text CHECK (last_name <> ''),
     email         text CHECK (length(email) BETWEEN 3 AND 254),
-    profile       jsonb CHECK (octet_length(profile::text) <= 65536),
+    -- A guard against absurd sizes, not a business limit (internal/candidate validates the profile): the largest
+    -- profile a candidate can save is about 69,000 characters, up to ~415 KB once JSON-escaped.
+    profile       jsonb CHECK (octet_length(profile::text) <= 524288),
     letter        text CHECK (char_length(letter) BETWEEN 1 AND 5000),
     cv_object_key text UNIQUE CHECK (cv_object_key <> ''),
     cv_file_name  text CHECK (cv_file_name <> '' AND char_length(cv_file_name) <= 120),

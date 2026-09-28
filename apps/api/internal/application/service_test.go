@@ -379,3 +379,39 @@ func TestAnotherCandidatesApplicationIsNotFound(t *testing.T) {
 		t.Errorf("stored files = %v, want the CV copy kept", keys)
 	}
 }
+
+// fullProfile fills every list to its limit with accented text, the largest profile the candidate module accepts.
+func fullProfile() candidate.Profile {
+	text := func(n int) string { return strings.Repeat("é", n) }
+	end := "2025-06"
+	input := candidate.ProfileInput{
+		Headline: text(candidate.MaxHeadlineLength), Summary: text(candidate.MaxSummaryLength), City: text(candidate.MaxCityLength),
+	}
+	for range candidate.MaxSkills {
+		input.Skills = append(input.Skills, text(candidate.MaxSkillLength))
+	}
+	for range candidate.MaxExperiences {
+		input.Experiences = append(input.Experiences, candidate.Experience{
+			Title: text(candidate.MaxLabelLength), Organization: text(candidate.MaxLabelLength), City: text(candidate.MaxCityLength),
+			StartMonth: "2024-01", EndMonth: &end, Description: text(candidate.MaxDescriptionLength),
+		})
+	}
+	for range candidate.MaxEducations {
+		input.Educations = append(input.Educations, candidate.Education{
+			Degree: text(candidate.MaxLabelLength), School: text(candidate.MaxLabelLength), Field: text(candidate.MaxLabelLength),
+			StartMonth: "2020-10", EndMonth: &end, Description: text(candidate.MaxDescriptionLength),
+		})
+	}
+	return candidate.Profile{ProfileInput: input}
+}
+
+func TestApplyAcceptsTheLargestProfileTheCandidateCanSave(t *testing.T) {
+	requireDB(t)
+	seedCompany(t, companySlug)
+	f := newFixture()
+	f.profiles.profile = fullProfile()
+
+	if _, err := f.service.Apply(context.Background(), newApplicant(t), companySlug); err != nil {
+		t.Fatalf("apply with a full profile: %v", err)
+	}
+}
