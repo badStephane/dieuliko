@@ -26,6 +26,23 @@ const (
 	StatusHidden  = "hidden"
 )
 
+// Quality gaps the back-office can list, to fix listings one after the other.
+const (
+	QualityNoLogo        = "no-logo"
+	QualityNoDescription = "no-description"
+	QualityNoContact     = "no-contact"
+	QualityUnverified    = "unverified"
+)
+
+// Qualities are the accepted quality filters.
+var Qualities = []string{QualityNoLogo, QualityNoDescription, QualityNoContact, QualityUnverified}
+
+// Sort orders of the back-office company list.
+const (
+	SortName    = "name"
+	SortUpdated = "updated"
+)
+
 // maxSlugAttempts bounds the "-2", "-3"… suffixes tried when a generated slug is taken.
 const maxSlugAttempts = 100
 
@@ -71,8 +88,10 @@ type CompanySummary struct {
 
 // CompanyFilters narrows the back-office search; empty fields do not filter.
 type CompanyFilters struct {
-	Query  string
-	Status string // StatusVisible, StatusHidden or ""
+	Query   string
+	Status  string // StatusVisible, StatusHidden or ""
+	Quality string // one of Qualities, or ""
+	Sort    string // SortName (default) or SortUpdated
 }
 
 // CompanyPage is one page of listings and the number of matches.
@@ -97,15 +116,14 @@ func NewCompanyService(db DB, store storage.Store, logger *slog.Logger) *Company
 func (s *CompanyService) Search(ctx context.Context, filters CompanyFilters, offset, limit int) (CompanyPage, error) {
 	q := dbgen.New(s.db)
 	words := company.SearchWords(filters.Query)
-	var status *string
-	if filters.Status != "" {
-		status = &filters.Status
-	}
-	rows, err := q.SearchAdminCompanies(ctx, dbgen.SearchAdminCompaniesParams{Status: status, Words: words, RowOffset: int32(offset), RowLimit: int32(limit)})
+	status, quality := nullable(filters.Status), nullable(filters.Quality)
+	rows, err := q.SearchAdminCompanies(ctx, dbgen.SearchAdminCompaniesParams{
+		Status: status, Quality: quality, Words: words, Sort: filters.Sort, RowOffset: int32(offset), RowLimit: int32(limit),
+	})
 	if err != nil {
 		return CompanyPage{}, fmt.Errorf("admin search companies: %w", err)
 	}
-	total, err := q.CountAdminCompanies(ctx, dbgen.CountAdminCompaniesParams{Status: status, Words: words})
+	total, err := q.CountAdminCompanies(ctx, dbgen.CountAdminCompaniesParams{Status: status, Quality: quality, Words: words})
 	if err != nil {
 		return CompanyPage{}, fmt.Errorf("admin count companies: %w", err)
 	}

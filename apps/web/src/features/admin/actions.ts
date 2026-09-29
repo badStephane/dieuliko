@@ -8,7 +8,7 @@ import { redirectOnLostSession, requestContext, requireAdmin } from "@/features/
 import { LOGO_MISSING, logoFileError } from "@/features/companies/logo";
 import { companyHref } from "@/features/companies/search-params";
 import { COMPANIES_PATH } from "@/lib/navigation";
-import { companyInputSchema } from "./admin-api";
+import { BULK_ACTIONS, companyInputSchema, MAX_BULK_SLUGS, type BulkAction } from "./admin-api";
 import { ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, adminCandidatePath, adminCompanyPath } from "./paths";
 import { getAdminApi } from "./server";
 
@@ -117,6 +117,31 @@ export async function removeCompanyLogoAction(slug: unknown): Promise<AdminResul
   }
   revalidateCompany(parsed.data);
   return { status: "success", message: "Le logo est retiré." };
+}
+
+const BULK_MESSAGES: Readonly<Record<BulkAction, readonly [string, string]>> = {
+  hide: ["fiche masquée", "fiches masquées"],
+  unhide: ["fiche de nouveau visible", "fiches de nouveau visibles"],
+  verify: ["fiche marquée vérifiée", "fiches marquées vérifiées"],
+  unverify: ["fiche n’est plus marquée vérifiée", "fiches ne sont plus marquées vérifiées"],
+};
+
+/** Hides, shows, verifies or unverifies the selected listings of the back-office list. */
+export async function bulkCompaniesAction(action: unknown, slugs: unknown): Promise<AdminResult> {
+  await requireAdmin(ADMIN_COMPANIES_PATH);
+  const parsed = z
+    .object({ action: z.enum(BULK_ACTIONS), slugs: z.array(slugSchema).min(1).max(MAX_BULK_SLUGS) })
+    .safeParse({ action, slugs });
+  if (!parsed.success) return { status: "error", message: INVALID_REQUEST };
+  let updated: number;
+  try {
+    updated = await getAdminApi().bulkCompanies(parsed.data.action, parsed.data.slugs, await requestContext());
+  } catch (error: unknown) {
+    return failure(error, ADMIN_COMPANIES_PATH, false);
+  }
+  for (const slug of parsed.data.slugs) revalidateCompany(slug);
+  const [singular, plural] = BULK_MESSAGES[parsed.data.action];
+  return { status: "success", message: `${updated} ${updated > 1 ? plural : singular}.` };
 }
 
 export async function setCandidateSuspendedAction(id: unknown, suspended: unknown): Promise<AdminResult> {

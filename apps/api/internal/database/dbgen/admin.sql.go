@@ -49,17 +49,24 @@ const countAdminCompanies = `-- name: CountAdminCompanies :one
 SELECT count(*)
 FROM companies
 WHERE ($1::text IS NULL OR ($1::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND ($2::text IS NULL
+       OR ($2::text = 'no-logo' AND logo_key IS NULL AND coalesce(logo_url, '') = '')
+       OR ($2::text = 'no-description' AND coalesce(description, '') = '')
+       OR ($2::text = 'no-contact'
+           AND coalesce(email, '') = '' AND coalesce(phone, '') = '' AND coalesce(website, '') = '')
+       OR ($2::text = 'unverified' AND NOT verified))
   AND search_text LIKE ALL (
-      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($3::text[]) AS word)
 `
 
 type CountAdminCompaniesParams struct {
-	Status *string
-	Words  []string
+	Status  *string
+	Quality *string
+	Words   []string
 }
 
 func (q *Queries) CountAdminCompanies(ctx context.Context, arg CountAdminCompaniesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countAdminCompanies, arg.Status, arg.Words)
+	row := q.db.QueryRow(ctx, countAdminCompanies, arg.Status, arg.Quality, arg.Words)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -534,15 +541,23 @@ const searchAdminCompanies = `-- name: SearchAdminCompanies :many
 SELECT slug, name, sector, city, logo_key, verified, hidden_at, curated_at, source, updated_at
 FROM companies
 WHERE ($1::text IS NULL OR ($1::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND ($2::text IS NULL
+       OR ($2::text = 'no-logo' AND logo_key IS NULL AND coalesce(logo_url, '') = '')
+       OR ($2::text = 'no-description' AND coalesce(description, '') = '')
+       OR ($2::text = 'no-contact'
+           AND coalesce(email, '') = '' AND coalesce(phone, '') = '' AND coalesce(website, '') = '')
+       OR ($2::text = 'unverified' AND NOT verified))
   AND search_text LIKE ALL (
-      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
-ORDER BY name, slug
-LIMIT $4 OFFSET $3
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($3::text[]) AS word)
+ORDER BY CASE WHEN $4::text = 'updated' THEN updated_at END DESC, name, slug
+LIMIT $6 OFFSET $5
 `
 
 type SearchAdminCompaniesParams struct {
 	Status    *string
+	Quality   *string
 	Words     []string
+	Sort      string
 	RowOffset int32
 	RowLimit  int32
 }
@@ -560,12 +575,16 @@ type SearchAdminCompaniesRow struct {
 	UpdatedAt time.Time
 }
 
-// Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all)
-// and by words that must all appear in search_text (LIKE metacharacters already escaped). Keep both filters identical.
+// Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all), by
+// a quality gap to fix (see admin.Quality*; NULL = all) and by words that must all appear in search_text (LIKE
+// metacharacters already escaped). Keep the filters of both queries identical. Sorted by name, or most recently
+// updated first.
 func (q *Queries) SearchAdminCompanies(ctx context.Context, arg SearchAdminCompaniesParams) ([]SearchAdminCompaniesRow, error) {
 	rows, err := q.db.Query(ctx, searchAdminCompanies,
 		arg.Status,
+		arg.Quality,
 		arg.Words,
+		arg.Sort,
 		arg.RowOffset,
 		arg.RowLimit,
 	)

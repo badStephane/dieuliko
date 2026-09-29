@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CANDIDATE_STATUSES, COMPANY_STATUSES, listQueryFrom, PAGE_SIZE } from "./list-query";
+import { CANDIDATE_STATUSES, COMPANY_STATUSES, companyQueryFrom, listQueryFrom, PAGE_SIZE } from "./list-query";
 
 describe("listQueryFrom", () => {
   it("reads the search, the French status and the page", () => {
@@ -26,5 +26,23 @@ describe("listQueryFrom", () => {
 
   it("keeps the search short", () => {
     expect(listQueryFrom({ q: "x".repeat(500) }, COMPANY_STATUSES).q).toHaveLength(100);
+  });
+});
+
+describe("companyQueryFrom", () => {
+  it("adds the quality gap and the sort order to the list query", () => {
+    expect(companyQueryFrom({ q: "sow", statut: "visibles", manque: "logo", tri: "recentes", page: "2" })).toMatchObject({
+      q: "sow",
+      status: "visible",
+      quality: "no-logo",
+      qualityParam: "logo",
+      sort: "updated",
+      sortParam: "recentes",
+      page: 2,
+    });
+  });
+
+  it("falls back to every listing sorted by name", () => {
+    expect(companyQueryFrom({ manque: "tout", tri: "hasard" })).toMatchObject({ quality: "", qualityParam: "", sort: "name", sortParam: "" });
   });
 });

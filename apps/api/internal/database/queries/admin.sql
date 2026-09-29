@@ -28,21 +28,35 @@ GROUP BY c.id
 ORDER BY applications DESC, c.name
 LIMIT 10;
 
--- Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all)
--- and by words that must all appear in search_text (LIKE metacharacters already escaped). Keep both filters identical.
+-- Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all), by
+-- a quality gap to fix (see admin.Quality*; NULL = all) and by words that must all appear in search_text (LIKE
+-- metacharacters already escaped). Keep the filters of both queries identical. Sorted by name, or most recently
+-- updated first.
 -- name: SearchAdminCompanies :many
 SELECT slug, name, sector, city, logo_key, verified, hidden_at, curated_at, source, updated_at
 FROM companies
 WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND (sqlc.narg(quality)::text IS NULL
+       OR (sqlc.narg(quality)::text = 'no-logo' AND logo_key IS NULL AND coalesce(logo_url, '') = '')
+       OR (sqlc.narg(quality)::text = 'no-description' AND coalesce(description, '') = '')
+       OR (sqlc.narg(quality)::text = 'no-contact'
+           AND coalesce(email, '') = '' AND coalesce(phone, '') = '' AND coalesce(website, '') = '')
+       OR (sqlc.narg(quality)::text = 'unverified' AND NOT verified))
   AND search_text LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word)
-ORDER BY name, slug
+ORDER BY CASE WHEN sqlc.arg(sort)::text = 'updated' THEN updated_at END DESC, name, slug
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountAdminCompanies :one
 SELECT count(*)
 FROM companies
 WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') = (hidden_at IS NOT NULL))
+  AND (sqlc.narg(quality)::text IS NULL
+       OR (sqlc.narg(quality)::text = 'no-logo' AND logo_key IS NULL AND coalesce(logo_url, '') = '')
+       OR (sqlc.narg(quality)::text = 'no-description' AND coalesce(description, '') = '')
+       OR (sqlc.narg(quality)::text = 'no-contact'
+           AND coalesce(email, '') = '' AND coalesce(phone, '') = '' AND coalesce(website, '') = '')
+       OR (sqlc.narg(quality)::text = 'unverified' AND NOT verified))
   AND search_text LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word);
 

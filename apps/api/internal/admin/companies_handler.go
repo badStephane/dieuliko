@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -33,12 +35,14 @@ type CompanyManager interface {
 	SetLogo(ctx context.Context, adminID uuid.UUID, slug string, content []byte) (AdminCompany, error)
 	RemoveLogo(ctx context.Context, adminID uuid.UUID, slug string) (AdminCompany, error)
 	LogoKey(ctx context.Context, slug string) (*string, error)
+	Bulk(ctx context.Context, adminID uuid.UUID, action string, slugs []string) (BulkResult, error)
 }
 
 func (h *Handler) registerCompanies(admin *gin.RouterGroup) {
 	companies := admin.Group("/companies")
 	companies.GET("", h.listCompanies)
 	companies.POST("", h.createCompany)
+	companies.POST("/bulk", h.bulkCompanies)
 	companies.GET("/:slug", h.getCompany)
 	companies.PUT("/:slug", h.updateCompany)
 	companies.PUT("/:slug/visibility", h.setCompanyVisibility)
@@ -51,17 +55,34 @@ func (h *Handler) listCompanies(c *gin.Context) {
 	if !ok {
 		return
 	}
-	status := c.Query("status")
-	if status != "" && status != StatusVisible && status != StatusHidden {
-		httpx.Fail(c, http.StatusBadRequest, httpx.CodeBadRequest, "Le paramètre « status » doit valoir visible ou hidden.")
+	filters, ok := companyFilters(c)
+	if !ok {
 		return
 	}
-	page, err := h.services.Companies.Search(c.Request.Context(), CompanyFilters{Query: c.Query("q"), Status: status}, offset, limit)
+	page, err := h.services.Companies.Search(c.Request.Context(), filters, offset, limit)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
 	httpx.OK(c, page)
+}
+
+// companyFilters reads q, status, quality and sort; it answers 400 when one is not accepted.
+func companyFilters(c *gin.Context) (CompanyFilters, bool) {
+	filters := CompanyFilters{Query: c.Query("q"), Status: c.Query("status"), Quality: c.Query("quality"), Sort: c.DefaultQuery("sort", SortName)}
+	message := ""
+	switch {
+	case filters.Status != "" && filters.Status != StatusVisible && filters.Status != StatusHidden:
+		message = "Le paramètre « status » doit valoir visible ou hidden."
+	case filters.Quality != "" && !slices.Contains(Qualities, filters.Quality):
+		message = "Le paramètre « quality » doit valoir " + strings.Join(Qualities, ", ") + "."
+	case filters.Sort != SortName && filters.Sort != SortUpdated:
+		message = "Le paramètre « sort » doit valoir name ou updated."
+	default:
+		return filters, true
+	}
+	httpx.Fail(c, http.StatusBadRequest, httpx.CodeBadRequest, message)
+	return CompanyFilters{}, false
 }
 
 func (h *Handler) getCompany(c *gin.Context) {

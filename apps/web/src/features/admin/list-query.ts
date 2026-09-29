@@ -29,3 +29,40 @@ export function listQueryFrom(params: SearchParams, statuses: Readonly<Record<st
   const page = Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_PAGE ? parsed : 1;
   return { q, status, statusParam: status ? statusParam : "", page, offset: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE };
 }
+
+/** French `?manque=` values of the listings list, and the API quality gap each one stands for. */
+export const COMPANY_QUALITIES: Readonly<Record<string, string>> = {
+  logo: "no-logo",
+  description: "no-description",
+  contact: "no-contact",
+  verification: "unverified",
+};
+/** French `?tri=` values; without one the list is sorted by name. */
+export const COMPANY_SORTS: Readonly<Record<string, string>> = { recentes: "updated" };
+const DEFAULT_SORT = "name";
+
+export interface CompanyPageQuery extends PageQuery {
+  readonly quality: string;
+  readonly qualityParam: string;
+  readonly sort: string;
+  readonly sortParam: string;
+}
+
+function known(params: SearchParams, name: string, values: Readonly<Record<string, string>>): { param: string; value: string } {
+  const param = first(params[name]);
+  const value = Object.hasOwn(values, param) ? (values[param] ?? "") : "";
+  return { param: value ? param : "", value };
+}
+
+/** `listQueryFrom` for the listings list, plus `manque` (a quality gap) and `tri` (the sort order). */
+export function companyQueryFrom(params: SearchParams): CompanyPageQuery {
+  const quality = known(params, "manque", COMPANY_QUALITIES);
+  const sort = known(params, "tri", COMPANY_SORTS);
+  return {
+    ...listQueryFrom(params, COMPANY_STATUSES),
+    quality: quality.value,
+    qualityParam: quality.param,
+    sort: sort.value || DEFAULT_SORT,
+    sortParam: sort.param,
+  };
+}

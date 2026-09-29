@@ -95,15 +95,20 @@ export interface ListQuery {
   readonly status: string;
   readonly offset: number;
   readonly limit: number;
+  /** Listings only: a quality gap to fix ("no-logo"…) and the sort order ("name", "updated"). */
+  readonly quality?: string;
+  readonly sort?: string;
 }
 
 const companyPath = (slug: string) => `/admin/companies/${encodeURIComponent(slug)}`;
 const candidatePath = (id: string) => `/admin/candidates/${encodeURIComponent(id)}`;
 
-function listParams({ q, status, offset, limit }: ListQuery): Record<string, string> {
+function listParams({ q, status, offset, limit, quality, sort }: ListQuery): Record<string, string> {
   return {
     ...(q.trim() ? { q: q.trim() } : {}),
     ...(status ? { status } : {}),
+    ...(quality ? { quality } : {}),
+    ...(sort ? { sort } : {}),
     offset: String(offset),
     limit: String(limit),
   };
@@ -130,7 +135,14 @@ export interface AdminApi {
   setCandidateSuspended(id: string, suspended: boolean, context: RequestOptions): Promise<CandidateDetail>;
   /** Erases the account; `confirmEmail` must repeat its address. */
   deleteCandidate(id: string, confirmEmail: string, context: RequestOptions): Promise<void>;
+  /** Hides, shows, verifies or unverifies several listings; returns how many changed. */
+  bulkCompanies(action: BulkAction, slugs: readonly string[], context: RequestOptions): Promise<number>;
 }
+
+export const BULK_ACTIONS = ["hide", "unhide", "verify", "unverify"] as const;
+export type BulkAction = (typeof BULK_ACTIONS)[number];
+/** Mirrors admin.MaxBulkSlugs of the API. */
+export const MAX_BULK_SLUGS = 100;
 
 export function createAdminApi(client: ApiClient): AdminApi {
   return {
@@ -181,6 +193,10 @@ export function createAdminApi(client: ApiClient): AdminApi {
     },
     async deleteCandidate(id, confirmEmail, context) {
       await client.post(`${candidatePath(id)}/deletion`, { confirmEmail }, context);
+    },
+    async bulkCompanies(action, slugs, context) {
+      const response = await client.post("/admin/companies/bulk", { action, slugs }, context);
+      return parseApiData(z.object({ updated: z.number().int().nonnegative() }), response, "bulk result").updated;
     },
   };
 }

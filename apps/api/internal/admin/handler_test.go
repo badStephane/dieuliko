@@ -100,6 +100,9 @@ type fakeCompanies struct {
 	gotFlag    *bool
 	gotContent []byte
 	logoKey    *string
+
+	gotBulkAction string
+	gotSlugs      []string
 }
 
 var testCompany = AdminCompany{CompanyInput: CompanyInput{Name: "Cabinet Ndiaye", Sector: "finance-comptabilite", City: "Dakar"}, Slug: "cabinet-ndiaye"}
@@ -144,6 +147,11 @@ func (f *fakeCompanies) RemoveLogo(_ context.Context, adminID uuid.UUID, slug st
 	return testCompany, f.err
 }
 
+func (f *fakeCompanies) Bulk(_ context.Context, adminID uuid.UUID, action string, slugs []string) (BulkResult, error) {
+	f.gotAdmin, f.gotBulkAction, f.gotSlugs = adminID, action, slugs
+	return BulkResult{Updated: len(slugs)}, f.err
+}
+
 func (f *fakeCompanies) LogoKey(_ context.Context, slug string) (*string, error) {
 	f.gotSlug = slug
 	return f.logoKey, f.err
@@ -158,7 +166,7 @@ func TestListCompaniesReadsFiltersAndPage(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"total":1`) {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
-	if companies.gotFilters != (CompanyFilters{Query: "ndiaye", Status: StatusHidden}) || companies.gotPage != [2]int{20, 10} {
+	if companies.gotFilters != (CompanyFilters{Query: "ndiaye", Status: StatusHidden, Sort: SortName}) || companies.gotPage != [2]int{20, 10} {
 		t.Errorf("filters %+v page %v", companies.gotFilters, companies.gotPage)
 	}
 	for _, query := range []string{"limit=500", "offset=-1", "status=perdue"} {

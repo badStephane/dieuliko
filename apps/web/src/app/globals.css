@@ -49,3 +49,9 @@
     line-height: 1.2;
   }
 }
+
+/* The back-office draws its own frame: the site's header and footer step aside. */
+body:has([data-admin-shell]) > header,
+body:has([data-admin-shell]) > footer {
+  display: none;
+}

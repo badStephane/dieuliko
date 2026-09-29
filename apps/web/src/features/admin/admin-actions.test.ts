@@ -31,6 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath: (path: string) => request.revalid
 
 import { SESSION_COOKIE } from "@/features/auth/server";
 import {
+  bulkCompaniesAction,
   deleteCandidateAction,
   removeCompanyLogoAction,
   saveCompanyAction,
@@ -190,6 +191,30 @@ describe("logo actions", () => {
 
     expect(await removeCompanyLogoAction("cabinet-ndiaye")).toEqual({ status: "success", message: "Le logo est retiré." });
     expect(request.revalidated).toContain("/entreprises/cabinet-ndiaye");
+  });
+});
+
+describe("bulk company actions", () => {
+  it("apply one action to the selected listings and say how many changed", async () => {
+    stubApi({ ...ME, "POST /admin/companies/bulk": { data: { updated: 2 } } });
+
+    expect(await bulkCompaniesAction("hide", ["cabinet-ndiaye", "atelier-sow"])).toEqual({ status: "success", message: "2 fiches masquées." });
+    expect(request.revalidated).toEqual(expect.arrayContaining(["/entreprises", "/admin/entreprises", "/entreprises/atelier-sow"]));
+  });
+
+  it("use the singular for one listing", async () => {
+    stubApi({ ...ME, "POST /admin/companies/bulk": { data: { updated: 1 } } });
+
+    expect(await bulkCompaniesAction("verify", ["cabinet-ndiaye"])).toEqual({ status: "success", message: "1 fiche marquée vérifiée." });
+  });
+
+  it("refuse an unknown action, an empty or oversized selection without calling the API", async () => {
+    stubApi(ME);
+
+    expect((await bulkCompaniesAction("delete", ["cabinet-ndiaye"])).status).toBe("error");
+    expect((await bulkCompaniesAction("hide", [])).status).toBe("error");
+    expect((await bulkCompaniesAction("hide", Array.from({ length: 101 }, (_, i) => `fiche-${i}`))).status).toBe("error");
+    expect(calls.filter((call) => call !== "GET /auth/me")).toEqual([]);
   });
 });
 

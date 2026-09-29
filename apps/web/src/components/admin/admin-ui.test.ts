@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AdminCompany } from "@/features/admin/admin-api";
-import { CANDIDATE_STATUSES, COMPANY_STATUSES, listQueryFrom } from "@/features/admin/list-query";
+import { CANDIDATE_STATUSES, COMPANY_QUALITIES, COMPANY_SORTS, COMPANY_STATUSES, listQueryFrom } from "@/features/admin/list-query";
 import { missingFields, REQUIRED_MESSAGE, sameValues, toInput, valuesFrom } from "./company-form";
 import { listHref } from "./list-href";
-import { CANDIDATE_STATUS_OPTIONS, COMPANY_STATUS_OPTIONS } from "./status-options";
+import { CANDIDATE_STATUS_OPTIONS, COMPANY_QUALITY_OPTIONS, COMPANY_SORT_OPTIONS, COMPANY_STATUS_OPTIONS } from "./status-options";
 import { candidateName, countLabel, percentOf } from "./text";
 
 const company: AdminCompany = {
@@ -59,6 +59,12 @@ describe("company form values", () => {
 });
 
 describe("listHref", () => {
+  it("keeps the quality gap and the sort order of the listings list", () => {
+    expect(listHref("/admin/entreprises", { q: "", statusParam: "", page: 2, qualityParam: "logo", sortParam: "recentes" })).toBe(
+      "/admin/entreprises?manque=logo&tri=recentes&page=2",
+    );
+  });
+
   it("omits empty filters and page 1", () => {
     expect(listHref("/admin/entreprises", { q: "", statusParam: "", page: 1 })).toBe("/admin/entreprises");
   });
@@ -95,5 +101,15 @@ describe("text helpers", () => {
   it("falls back to the email when the name is empty", () => {
     expect(candidateName({ firstName: "", lastName: " ", email: "a@b.sn" })).toBe("a@b.sn");
     expect(candidateName({ firstName: "Awa", lastName: "Diop", email: "a@b.sn" })).toBe("Awa Diop");
+  });
+});
+
+describe("listing filter options", () => {
+  it("only offer values the URL parser knows", () => {
+    const qualities = Object.values(COMPANY_QUALITY_OPTIONS).map((option) => option.value).filter(Boolean);
+    const sorts = Object.values(COMPANY_SORT_OPTIONS).map((option) => option.value).filter(Boolean);
+
+    expect(qualities.sort()).toEqual(Object.keys(COMPANY_QUALITIES).sort());
+    expect(sorts).toEqual(Object.keys(COMPANY_SORTS));
   });
 });
