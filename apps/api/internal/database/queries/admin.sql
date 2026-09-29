@@ -156,24 +156,57 @@ DELETE FROM companies WHERE slug = $1 RETURNING logo_key;
 INSERT INTO admin_audit (admin_id, action, target_type, target_id, changed_fields)
 VALUES ($1, $2, $3, $4, $5);
 
--- Back-office candidate search, newest first: status 'active' / 'suspended' (NULL = all) and words that must all
--- appear in the name or email (LIKE metacharacters already escaped). Keep both filters identical. Admins are never listed.
+-- Back-office candidate search: status 'active' / 'suspended' (NULL = all), a step of the journey ('unverified',
+-- 'no-profile', 'no-cv', 'applied'; NULL = all) and words that must all appear in the name or email (LIKE
+-- metacharacters already escaped). Newest first, or by name. Keep the filters of both queries identical; "has
+-- profile" mirrors candidate.Profile.HasContent. Admins are never listed, and only facts are read, never content.
 -- name: SearchAdminCandidates :many
-SELECT id, email::text AS email, first_name, last_name, email_verified_at, suspended_at, created_at
-FROM users
-WHERE role = 'candidate'
-  AND (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'suspended') = (suspended_at IS NOT NULL))
-  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
+WITH candidates AS (
+    SELECT u.id, u.email::text AS email, u.first_name, u.last_name, u.email_verified_at, u.suspended_at, u.created_at,
+           EXISTS (SELECT 1 FROM candidate_profiles p WHERE p.user_id = u.id
+                   AND (p.headline <> '' OR cardinality(p.skills) > 0
+                        OR EXISTS (SELECT 1 FROM candidate_experiences e WHERE e.user_id = u.id)
+                        OR EXISTS (SELECT 1 FROM candidate_educations d WHERE d.user_id = u.id))) AS has_profile,
+           EXISTS (SELECT 1 FROM candidate_cvs v WHERE v.user_id = u.id) AS has_cv,
+           (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'sent') AS applications_sent
+    FROM users u
+    WHERE u.role = 'candidate'
+)
+SELECT id, email, first_name, last_name, email_verified_at, suspended_at, created_at, has_profile, has_cv, applications_sent
+FROM candidates
+WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND (sqlc.narg(progress)::text IS NULL
+       OR (sqlc.narg(progress)::text = 'unverified' AND email_verified_at IS NULL)
+       OR (sqlc.narg(progress)::text = 'no-profile' AND NOT has_profile)
+       OR (sqlc.narg(progress)::text = 'no-cv' AND NOT has_cv)
+       OR (sqlc.narg(progress)::text = 'applied' AND applications_sent > 0))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email) LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word)
-ORDER BY created_at DESC, id
+ORDER BY CASE WHEN sqlc.arg(sort)::text = 'name' THEN normalize_text(last_name || ' ' || first_name) END,
+         created_at DESC, id
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountAdminCandidates :one
+WITH candidates AS (
+    SELECT u.first_name, u.last_name, u.email::text AS email, u.email_verified_at, u.suspended_at,
+           EXISTS (SELECT 1 FROM candidate_profiles p WHERE p.user_id = u.id
+                   AND (p.headline <> '' OR cardinality(p.skills) > 0
+                        OR EXISTS (SELECT 1 FROM candidate_experiences e WHERE e.user_id = u.id)
+                        OR EXISTS (SELECT 1 FROM candidate_educations d WHERE d.user_id = u.id))) AS has_profile,
+           EXISTS (SELECT 1 FROM candidate_cvs v WHERE v.user_id = u.id) AS has_cv,
+           (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'sent') AS applications_sent
+    FROM users u
+    WHERE u.role = 'candidate'
+)
 SELECT count(*)
-FROM users
-WHERE role = 'candidate'
-  AND (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'suspended') = (suspended_at IS NOT NULL))
-  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
+FROM candidates
+WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND (sqlc.narg(progress)::text IS NULL
+       OR (sqlc.narg(progress)::text = 'unverified' AND email_verified_at IS NULL)
+       OR (sqlc.narg(progress)::text = 'no-profile' AND NOT has_profile)
+       OR (sqlc.narg(progress)::text = 'no-cv' AND NOT has_cv)
+       OR (sqlc.narg(progress)::text = 'applied' AND applications_sent > 0))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email) LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word);
 
 -- What the back-office may know about a candidate: account status, whether each piece exists, and counts. Never the

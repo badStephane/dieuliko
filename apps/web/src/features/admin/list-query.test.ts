@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CANDIDATE_STATUSES, COMPANY_STATUSES, companyQueryFrom, listQueryFrom, PAGE_SIZE } from "./list-query";
+import { CANDIDATE_STATUSES, candidateQueryFrom, COMPANY_STATUSES, companyQueryFrom, listQueryFrom, PAGE_SIZE } from "./list-query";
 
 describe("listQueryFrom", () => {
   it("reads the search, the French status and the page", () => {
@@ -44,5 +44,21 @@ describe("companyQueryFrom", () => {
 
   it("falls back to every listing sorted by name", () => {
     expect(companyQueryFrom({ manque: "tout", tri: "hasard" })).toMatchObject({ quality: "", qualityParam: "", sort: "name", sortParam: "" });
+  });
+});
+
+describe("candidateQueryFrom", () => {
+  it("adds the journey step and the sort order to the list query", () => {
+    expect(candidateQueryFrom({ statut: "actifs", etape: "cv", tri: "nom" })).toMatchObject({
+      status: "active",
+      progress: "no-cv",
+      progressParam: "cv",
+      sort: "name",
+      sortParam: "nom",
+    });
+  });
+
+  it("falls back to every candidate, newest first", () => {
+    expect(candidateQueryFrom({ etape: "riche", tri: "age" })).toMatchObject({ progress: "", progressParam: "", sort: "newest", sortParam: "" });
   });
 });

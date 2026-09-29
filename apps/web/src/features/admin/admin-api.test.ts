@@ -62,6 +62,9 @@ const CANDIDATE = {
   emailVerified: true,
   suspendedAt: null,
   createdAt: "2026-09-27T10:00:00Z",
+  hasProfile: true,
+  hasCv: false,
+  applicationsSent: 0,
 };
 
 describe("createAdminApi", () => {

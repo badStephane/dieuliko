@@ -3,6 +3,8 @@ package admin
 import (
 	"context"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -33,17 +35,34 @@ func (h *Handler) listCandidates(c *gin.Context) {
 	if !ok {
 		return
 	}
-	status := c.Query("status")
-	if status != "" && status != CandidateActive && status != CandidateSuspended {
-		httpx.Fail(c, http.StatusBadRequest, httpx.CodeBadRequest, "Le paramètre « status » doit valoir active ou suspended.")
+	filters, ok := candidateFilters(c)
+	if !ok {
 		return
 	}
-	page, err := h.services.Accounts.Search(c.Request.Context(), CandidateFilters{Query: c.Query("q"), Status: status}, offset, limit)
+	page, err := h.services.Accounts.Search(c.Request.Context(), filters, offset, limit)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
 	httpx.OK(c, page)
+}
+
+// candidateFilters reads q, status, progress and sort; it answers 400 when one is not accepted.
+func candidateFilters(c *gin.Context) (CandidateFilters, bool) {
+	filters := CandidateFilters{Query: c.Query("q"), Status: c.Query("status"), Progress: c.Query("progress"), Sort: c.DefaultQuery("sort", SortNewest)}
+	message := ""
+	switch {
+	case filters.Status != "" && filters.Status != CandidateActive && filters.Status != CandidateSuspended:
+		message = "Le paramètre « status » doit valoir active ou suspended."
+	case filters.Progress != "" && !slices.Contains(Progresses, filters.Progress):
+		message = "Le paramètre « progress » doit valoir " + strings.Join(Progresses, ", ") + "."
+	case filters.Sort != SortNewest && filters.Sort != SortName:
+		message = "Le paramètre « sort » doit valoir newest ou name."
+	default:
+		return filters, true
+	}
+	httpx.Fail(c, http.StatusBadRequest, httpx.CodeBadRequest, message)
+	return CandidateFilters{}, false
 }
 
 func (h *Handler) getCandidate(c *gin.Context) {

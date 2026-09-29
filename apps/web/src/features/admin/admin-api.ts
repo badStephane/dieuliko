@@ -71,6 +71,7 @@ const companySummarySchema = adminCompanySchema.pick({
   updatedAt: true,
 });
 
+/** What the back-office may know about a candidate: status and steps taken, never the content of their space. */
 export const candidateSummarySchema = z.object({
   id: z.string().uuid(),
   email: z.string(),
@@ -79,14 +80,13 @@ export const candidateSummarySchema = z.object({
   emailVerified: z.boolean(),
   suspendedAt: z.string().nullable(),
   createdAt: z.string(),
-});
-
-/** What the back-office may know about a candidate: status and counts, never the content of their space. */
-export const candidateDetailSchema = candidateSummarySchema.extend({
   hasProfile: z.boolean(),
   hasCv: z.boolean(),
-  letters: z.number(),
   applicationsSent: z.number(),
+});
+
+export const candidateDetailSchema = candidateSummarySchema.extend({
+  letters: z.number(),
   applicationsWithdrawn: z.number(),
 });
 
@@ -123,19 +123,23 @@ export interface ListQuery {
   readonly status: string;
   readonly offset: number;
   readonly limit: number;
-  /** Listings only: a quality gap to fix ("no-logo"…) and the sort order ("name", "updated"). */
+  /** Listings only: a quality gap to fix ("no-logo"…). */
   readonly quality?: string;
+  /** Candidates only: a step of the journey ("unverified", "no-cv"…). */
+  readonly progress?: string;
+  /** "name", or "updated" (listings) / "newest" (candidates). */
   readonly sort?: string;
 }
 
 const companyPath = (slug: string) => `/admin/companies/${encodeURIComponent(slug)}`;
 const candidatePath = (id: string) => `/admin/candidates/${encodeURIComponent(id)}`;
 
-function listParams({ q, status, offset, limit, quality, sort }: ListQuery): Record<string, string> {
+function listParams({ q, status, offset, limit, quality, progress, sort }: ListQuery): Record<string, string> {
   return {
     ...(q.trim() ? { q: q.trim() } : {}),
     ...(status ? { status } : {}),
     ...(quality ? { quality } : {}),
+    ...(progress ? { progress } : {}),
     ...(sort ? { sort } : {}),
     offset: String(offset),
     limit: String(limit),

@@ -35,6 +35,10 @@ type CandidateSummary struct {
 	EmailVerified bool       `json:"emailVerified"`
 	SuspendedAt   *time.Time `json:"suspendedAt"`
 	CreatedAt     time.Time  `json:"createdAt"`
+	// Steps of the journey: facts only, never the content of the profile, CV or applications.
+	HasProfile       bool  `json:"hasProfile"`
+	HasCV            bool  `json:"hasCv"`
+	ApplicationsSent int64 `json:"applicationsSent"`
 }
 
 // CandidateDetail adds what exists in the candidate's space, never its content.
@@ -49,9 +53,25 @@ type CandidateDetail struct {
 
 // CandidateFilters narrows the back-office search; empty fields do not filter.
 type CandidateFilters struct {
-	Query  string
-	Status string // CandidateActive, CandidateSuspended or ""
+	Query    string
+	Status   string // CandidateActive, CandidateSuspended or ""
+	Progress string // one of Progresses, or ""
+	Sort     string // SortNewest (default) or SortName
 }
+
+// Steps of the journey the candidate list can filter on.
+const (
+	ProgressUnverified = "unverified"
+	ProgressNoProfile  = "no-profile"
+	ProgressNoCV       = "no-cv"
+	ProgressApplied    = "applied"
+)
+
+// Progresses are the accepted journey filters.
+var Progresses = []string{ProgressUnverified, ProgressNoProfile, ProgressNoCV, ProgressApplied}
+
+// SortNewest lists the newest accounts first (SortName is shared with the listings).
+const SortNewest = "newest"
 
 // CandidatePage is one page of candidates and the number of matches.
 type CandidatePage struct {
@@ -77,15 +97,14 @@ func NewAccountService(db DB, store storage.Store, mailer mail.Mailer, logger *s
 func (s *AccountService) Search(ctx context.Context, filters CandidateFilters, offset, limit int) (CandidatePage, error) {
 	q := dbgen.New(s.db)
 	words := company.SearchWords(filters.Query)
-	var status *string
-	if filters.Status != "" {
-		status = &filters.Status
-	}
-	rows, err := q.SearchAdminCandidates(ctx, dbgen.SearchAdminCandidatesParams{Status: status, Words: words, RowOffset: int32(offset), RowLimit: int32(limit)})
+	status, progress := nullable(filters.Status), nullable(filters.Progress)
+	rows, err := q.SearchAdminCandidates(ctx, dbgen.SearchAdminCandidatesParams{
+		Status: status, Progress: progress, Words: words, Sort: filters.Sort, RowOffset: int32(offset), RowLimit: int32(limit),
+	})
 	if err != nil {
 		return CandidatePage{}, fmt.Errorf("admin search candidates: %w", err)
 	}
-	total, err := q.CountAdminCandidates(ctx, dbgen.CountAdminCandidatesParams{Status: status, Words: words})
+	total, err := q.CountAdminCandidates(ctx, dbgen.CountAdminCandidatesParams{Status: status, Progress: progress, Words: words})
 	if err != nil {
 		return CandidatePage{}, fmt.Errorf("admin count candidates: %w", err)
 	}
@@ -94,6 +113,7 @@ func (s *AccountService) Search(ctx context.Context, filters CandidateFilters, o
 		items = append(items, CandidateSummary{
 			ID: row.ID, Email: row.Email, FirstName: row.FirstName, LastName: row.LastName,
 			EmailVerified: row.EmailVerifiedAt != nil, SuspendedAt: row.SuspendedAt, CreatedAt: row.CreatedAt,
+			HasProfile: row.HasProfile, HasCV: row.HasCv, ApplicationsSent: row.ApplicationsSent,
 		})
 	}
 	return CandidatePage{Items: items, Total: int(total)}, nil

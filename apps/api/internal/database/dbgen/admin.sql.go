@@ -36,21 +36,37 @@ func (q *Queries) CountAdminAudit(ctx context.Context, targetType *string) (int6
 }
 
 const countAdminCandidates = `-- name: CountAdminCandidates :one
+WITH candidates AS (
+    SELECT u.first_name, u.last_name, u.email::text AS email, u.email_verified_at, u.suspended_at,
+           EXISTS (SELECT 1 FROM candidate_profiles p WHERE p.user_id = u.id
+                   AND (p.headline <> '' OR cardinality(p.skills) > 0
+                        OR EXISTS (SELECT 1 FROM candidate_experiences e WHERE e.user_id = u.id)
+                        OR EXISTS (SELECT 1 FROM candidate_educations d WHERE d.user_id = u.id))) AS has_profile,
+           EXISTS (SELECT 1 FROM candidate_cvs v WHERE v.user_id = u.id) AS has_cv,
+           (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'sent') AS applications_sent
+    FROM users u
+    WHERE u.role = 'candidate'
+)
 SELECT count(*)
-FROM users
-WHERE role = 'candidate'
-  AND ($1::text IS NULL OR ($1::text = 'suspended') = (suspended_at IS NOT NULL))
-  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
-      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
+FROM candidates
+WHERE ($1::text IS NULL OR ($1::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND ($2::text IS NULL
+       OR ($2::text = 'unverified' AND email_verified_at IS NULL)
+       OR ($2::text = 'no-profile' AND NOT has_profile)
+       OR ($2::text = 'no-cv' AND NOT has_cv)
+       OR ($2::text = 'applied' AND applications_sent > 0))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email) LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($3::text[]) AS word)
 `
 
 type CountAdminCandidatesParams struct {
-	Status *string
-	Words  []string
+	Status   *string
+	Progress *string
+	Words    []string
 }
 
 func (q *Queries) CountAdminCandidates(ctx context.Context, arg CountAdminCandidatesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countAdminCandidates, arg.Status, arg.Words)
+	row := q.db.QueryRow(ctx, countAdminCandidates, arg.Status, arg.Progress, arg.Words)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -711,39 +727,64 @@ func (q *Queries) LockCompanyLogo(ctx context.Context, slug string) (*string, er
 }
 
 const searchAdminCandidates = `-- name: SearchAdminCandidates :many
-SELECT id, email::text AS email, first_name, last_name, email_verified_at, suspended_at, created_at
-FROM users
-WHERE role = 'candidate'
-  AND ($1::text IS NULL OR ($1::text = 'suspended') = (suspended_at IS NOT NULL))
-  AND normalize_text(first_name || ' ' || last_name || ' ' || email::text) LIKE ALL (
-      SELECT '%' || normalize_text(word) || '%' FROM unnest($2::text[]) AS word)
-ORDER BY created_at DESC, id
-LIMIT $4 OFFSET $3
+WITH candidates AS (
+    SELECT u.id, u.email::text AS email, u.first_name, u.last_name, u.email_verified_at, u.suspended_at, u.created_at,
+           EXISTS (SELECT 1 FROM candidate_profiles p WHERE p.user_id = u.id
+                   AND (p.headline <> '' OR cardinality(p.skills) > 0
+                        OR EXISTS (SELECT 1 FROM candidate_experiences e WHERE e.user_id = u.id)
+                        OR EXISTS (SELECT 1 FROM candidate_educations d WHERE d.user_id = u.id))) AS has_profile,
+           EXISTS (SELECT 1 FROM candidate_cvs v WHERE v.user_id = u.id) AS has_cv,
+           (SELECT count(*) FROM applications a WHERE a.user_id = u.id AND a.status = 'sent') AS applications_sent
+    FROM users u
+    WHERE u.role = 'candidate'
+)
+SELECT id, email, first_name, last_name, email_verified_at, suspended_at, created_at, has_profile, has_cv, applications_sent
+FROM candidates
+WHERE ($1::text IS NULL OR ($1::text = 'suspended') = (suspended_at IS NOT NULL))
+  AND ($2::text IS NULL
+       OR ($2::text = 'unverified' AND email_verified_at IS NULL)
+       OR ($2::text = 'no-profile' AND NOT has_profile)
+       OR ($2::text = 'no-cv' AND NOT has_cv)
+       OR ($2::text = 'applied' AND applications_sent > 0))
+  AND normalize_text(first_name || ' ' || last_name || ' ' || email) LIKE ALL (
+      SELECT '%' || normalize_text(word) || '%' FROM unnest($3::text[]) AS word)
+ORDER BY CASE WHEN $4::text = 'name' THEN normalize_text(last_name || ' ' || first_name) END,
+         created_at DESC, id
+LIMIT $6 OFFSET $5
 `
 
 type SearchAdminCandidatesParams struct {
 	Status    *string
+	Progress  *string
 	Words     []string
+	Sort      string
 	RowOffset int32
 	RowLimit  int32
 }
 
 type SearchAdminCandidatesRow struct {
-	ID              uuid.UUID
-	Email           string
-	FirstName       string
-	LastName        string
-	EmailVerifiedAt *time.Time
-	SuspendedAt     *time.Time
-	CreatedAt       time.Time
+	ID               uuid.UUID
+	Email            string
+	FirstName        string
+	LastName         string
+	EmailVerifiedAt  *time.Time
+	SuspendedAt      *time.Time
+	CreatedAt        time.Time
+	HasProfile       bool
+	HasCv            bool
+	ApplicationsSent int64
 }
 
-// Back-office candidate search, newest first: status 'active' / 'suspended' (NULL = all) and words that must all
-// appear in the name or email (LIKE metacharacters already escaped). Keep both filters identical. Admins are never listed.
+// Back-office candidate search: status 'active' / 'suspended' (NULL = all), a step of the journey ('unverified',
+// 'no-profile', 'no-cv', 'applied'; NULL = all) and words that must all appear in the name or email (LIKE
+// metacharacters already escaped). Newest first, or by name. Keep the filters of both queries identical; "has
+// profile" mirrors candidate.Profile.HasContent. Admins are never listed, and only facts are read, never content.
 func (q *Queries) SearchAdminCandidates(ctx context.Context, arg SearchAdminCandidatesParams) ([]SearchAdminCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, searchAdminCandidates,
 		arg.Status,
+		arg.Progress,
 		arg.Words,
+		arg.Sort,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -762,6 +803,9 @@ func (q *Queries) SearchAdminCandidates(ctx context.Context, arg SearchAdminCand
 			&i.EmailVerifiedAt,
 			&i.SuspendedAt,
 			&i.CreatedAt,
+			&i.HasProfile,
+			&i.HasCv,
+			&i.ApplicationsSent,
 		); err != nil {
 			return nil, err
 		}

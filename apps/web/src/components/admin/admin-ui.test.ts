@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AdminCompany } from "@/features/admin/admin-api";
-import { CANDIDATE_STATUSES, COMPANY_QUALITIES, COMPANY_SORTS, COMPANY_STATUSES, listQueryFrom } from "@/features/admin/list-query";
+import { CANDIDATE_PROGRESSES, CANDIDATE_SORTS, CANDIDATE_STATUSES, COMPANY_QUALITIES, COMPANY_SORTS, COMPANY_STATUSES, listQueryFrom } from "@/features/admin/list-query";
 import { missingFields, previewCompany, REQUIRED_MESSAGE, sameValues, toInput, valuesFrom } from "./company-form";
 import { listHref } from "./list-href";
-import { CANDIDATE_STATUS_OPTIONS, COMPANY_QUALITY_OPTIONS, COMPANY_SORT_OPTIONS, COMPANY_STATUS_OPTIONS } from "./status-options";
+import { CANDIDATE_PROGRESS_OPTIONS, CANDIDATE_SORT_OPTIONS, CANDIDATE_STATUS_OPTIONS, COMPANY_QUALITY_OPTIONS, COMPANY_SORT_OPTIONS, COMPANY_STATUS_OPTIONS } from "./status-options";
 import { candidateName, countLabel, percentOf } from "./text";
 
 const company: AdminCompany = {
@@ -113,6 +113,14 @@ describe("listing filter options", () => {
 
     expect(qualities.sort()).toEqual(Object.keys(COMPANY_QUALITIES).sort());
     expect(sorts).toEqual(Object.keys(COMPANY_SORTS));
+  });
+
+  it("only offer candidate journey and sort values the URL parser knows", () => {
+    const steps = Object.values(CANDIDATE_PROGRESS_OPTIONS).map((option) => option.value).filter(Boolean);
+    const sorts = Object.values(CANDIDATE_SORT_OPTIONS).map((option) => option.value).filter(Boolean);
+
+    expect(steps.sort()).toEqual(Object.keys(CANDIDATE_PROGRESSES).sort());
+    expect(sorts).toEqual(Object.keys(CANDIDATE_SORTS));
   });
 });
 

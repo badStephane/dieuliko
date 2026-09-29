@@ -266,12 +266,17 @@ func TestCandidateRoutes(t *testing.T) {
 	router := newRouter(Services{Accounts: accounts})
 	path := "/v1/admin/candidates/" + candidateID.String()
 
-	if rec := send(router, http.MethodGet, "/v1/admin/candidates?q=awa&status=suspended", adminToken, ""); rec.Code != http.StatusOK ||
-		accounts.gotFilters != (CandidateFilters{Query: "awa", Status: CandidateSuspended}) {
+	if rec := send(router, http.MethodGet, "/v1/admin/candidates?q=awa&status=suspended&progress=no-cv&sort=name", adminToken, ""); rec.Code != http.StatusOK ||
+		accounts.gotFilters != (CandidateFilters{Query: "awa", Status: CandidateSuspended, Progress: ProgressNoCV, Sort: SortName}) {
 		t.Errorf("list: status %d filters %+v", rec.Code, accounts.gotFilters)
 	}
-	if rec := send(router, http.MethodGet, "/v1/admin/candidates?status=banni", adminToken, ""); rec.Code != http.StatusBadRequest {
-		t.Errorf("bad status: %d, want 400", rec.Code)
+	if rec := send(router, http.MethodGet, "/v1/admin/candidates", adminToken, ""); accounts.gotFilters.Sort != SortNewest {
+		t.Errorf("default sort = %q, status %d", accounts.gotFilters.Sort, rec.Code)
+	}
+	for _, query := range []string{"status=banni", "progress=riche", "sort=age"} {
+		if rec := send(router, http.MethodGet, "/v1/admin/candidates?"+query, adminToken, ""); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d, want 400", query, rec.Code)
+		}
 	}
 	if rec := send(router, http.MethodGet, path, adminToken, ""); rec.Code != http.StatusOK || accounts.gotID != candidateID {
 		t.Errorf("get: status %d id %s", rec.Code, accounts.gotID)

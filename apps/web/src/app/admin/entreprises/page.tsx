@@ -7,9 +7,10 @@ import { listHref } from "@/components/admin/list-href";
 import { ListSearchForm } from "@/components/admin/ListSearchForm";
 import { Pagination } from "@/components/admin/Pagination";
 import { COMPANY_QUALITY_OPTIONS, COMPANY_SORT_OPTIONS, COMPANY_STATUS_OPTIONS } from "@/components/admin/status-options";
-import { ADMIN_CARD, FOCUS_RING, PRIMARY_ACTION } from "@/components/admin/styles";
+import { FilterTabs } from "@/components/admin/FilterTabs";
+import { ADMIN_CARD, PRIMARY_ACTION } from "@/components/admin/styles";
 import { UnavailableNotice } from "@/components/admin/UnavailableNotice";
-import { companyQueryFrom, type CompanyPageQuery } from "@/features/admin/list-query";
+import { companyQueryFrom } from "@/features/admin/list-query";
 import { ADMIN_COMPANIES_PATH, ADMIN_NEW_COMPANY_PATH } from "@/features/admin/paths";
 import { loadCompanies } from "@/features/admin/server";
 import { requireAdmin } from "@/features/auth/server";
@@ -18,32 +19,6 @@ export const metadata: Metadata = {
   title: "Entreprises · Back-office",
   robots: { index: false, follow: false },
 };
-
-/** Tabs listing the listings that miss something, to complete them one after the other. */
-function QualityTabs({ query }: { readonly query: CompanyPageQuery }) {
-  return (
-    <nav aria-label="Fiches à compléter" className="-mx-1 overflow-x-auto">
-      <ul className="flex gap-2 px-1 pb-1">
-        {Object.values(COMPANY_QUALITY_OPTIONS).map((option) => {
-          const current = option.value === query.qualityParam;
-          return (
-            <li key={option.value} className="shrink-0">
-              <Link
-                href={listHref(ADMIN_COMPANIES_PATH, { ...query, qualityParam: option.value, page: 1 })}
-                aria-current={current ? "page" : undefined}
-                className={`inline-flex min-h-10 items-center rounded-full px-4 text-[15px] font-semibold transition-colors duration-150 ${FOCUS_RING} ${
-                  current ? "bg-ink text-white" : "bg-white text-ink shadow-[inset_0_0_0_1px_var(--color-line)] hover:bg-accent-soft"
-                }`}
-              >
-                {option.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
 
 export default async function AdminCompaniesPage({ searchParams }: PageProps<"/admin/entreprises">) {
   await requireAdmin(ADMIN_COMPANIES_PATH);
@@ -63,7 +38,12 @@ export default async function AdminCompaniesPage({ searchParams }: PageProps<"/a
           </Link>
         }
       />
-      <QualityTabs query={query} />
+      <FilterTabs
+        label="Fiches à compléter"
+        options={Object.values(COMPANY_QUALITY_OPTIONS)}
+        current={query.qualityParam}
+        hrefFor={(qualityParam) => listHref(ADMIN_COMPANIES_PATH, { ...query, qualityParam, page: 1 })}
+      />
       <section aria-label="Liste des entreprises" className={ADMIN_CARD}>
         <ListSearchForm
           basePath={ADMIN_COMPANIES_PATH}

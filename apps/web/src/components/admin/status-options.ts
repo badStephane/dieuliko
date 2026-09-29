@@ -28,3 +28,18 @@ export const COMPANY_SORT_OPTIONS = {
   name: { value: "", label: "Nom (A → Z)" },
   recent: { value: "recentes", label: "Modifiées récemment" },
 } as const satisfies Record<string, StatusOption>;
+
+/** Journey tabs of the candidates list; values are keys of `CANDIDATE_PROGRESSES` (list-query.ts). */
+export const CANDIDATE_PROGRESS_OPTIONS = {
+  all: { value: "", label: "Tous" },
+  email: { value: "email", label: "Email non confirmé" },
+  profile: { value: "profil", label: "Sans profil" },
+  cv: { value: "cv", label: "Sans CV" },
+  applied: { value: "postule", label: "Ont postulé" },
+} as const satisfies Record<string, StatusOption>;
+
+/** Sort orders of the candidates list; values are keys of `CANDIDATE_SORTS` (list-query.ts). */
+export const CANDIDATE_SORT_OPTIONS = {
+  newest: { value: "", label: "Inscription récente" },
+  name: { value: "nom", label: "Nom (A → Z)" },
+} as const satisfies Record<string, StatusOption>;

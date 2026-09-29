@@ -68,3 +68,33 @@ export function companyQueryFrom(params: SearchParams): CompanyPageQuery {
     sortParam: sort.param,
   };
 }
+
+/** French `?etape=` values of the candidates list, and the API journey step each one stands for. */
+export const CANDIDATE_PROGRESSES: Readonly<Record<string, string>> = {
+  email: "unverified",
+  profil: "no-profile",
+  cv: "no-cv",
+  postule: "applied",
+};
+/** French `?tri=` values of the candidates list; without one the newest accounts come first. */
+export const CANDIDATE_SORTS: Readonly<Record<string, string>> = { nom: "name" };
+
+export interface CandidatePageQuery extends PageQuery {
+  readonly progress: string;
+  readonly progressParam: string;
+  readonly sort: string;
+  readonly sortParam: string;
+}
+
+/** `listQueryFrom` for the candidates list, plus `etape` (a step of the journey) and `tri` (the sort order). */
+export function candidateQueryFrom(params: SearchParams): CandidatePageQuery {
+  const progress = known(params, "etape", CANDIDATE_PROGRESSES);
+  const sort = known(params, "tri", CANDIDATE_SORTS);
+  return {
+    ...listQueryFrom(params, CANDIDATE_STATUSES),
+    progress: progress.value,
+    progressParam: progress.param,
+    sort: sort.value || "newest",
+    sortParam: sort.param,
+  };
+}

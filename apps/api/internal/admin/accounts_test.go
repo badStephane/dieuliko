@@ -121,6 +121,46 @@ func TestSearchCandidatesByWordsAndStatus(t *testing.T) {
 	}
 }
 
+func TestSearchCandidatesByJourneyStepAndName(t *testing.T) {
+	f := newAccountFixture(t)
+	ctx := context.Background()
+	awa := newUser(t, "candidate", "Awa")
+	moussa := newUser(t, "candidate", "Moussa")
+	exec(t, "UPDATE users SET email_verified_at = now(), last_name = 'Ba', created_at = now() - interval '1 day' WHERE id = $1", awa)
+	exec(t, "INSERT INTO candidate_profiles (user_id, headline) VALUES ($1, 'Comptable')", awa)
+	exec(t, "INSERT INTO candidate_cvs (user_id, object_key, file_name, size_bytes) VALUES ($1, 'cvs/awa.pdf', 'cv.pdf', 10)", awa)
+	sendApplication(t, awa, seedCompany(t, "cabinet-ndiaye", "Cabinet Ndiaye"))
+
+	ids := func(filters CandidateFilters) []uuid.UUID {
+		t.Helper()
+		page, err := f.service.Search(ctx, filters, 0, 20)
+		if err != nil {
+			t.Fatalf("search %+v: %v", filters, err)
+		}
+		found := []uuid.UUID{}
+		for _, item := range page.Items {
+			found = append(found, item.ID)
+		}
+		return found
+	}
+
+	for progress, want := range map[string]uuid.UUID{ProgressUnverified: moussa, ProgressNoProfile: moussa, ProgressNoCV: moussa, ProgressApplied: awa} {
+		if got := ids(CandidateFilters{Progress: progress, Sort: SortNewest}); len(got) != 1 || got[0] != want {
+			t.Errorf("%s: %v, want only %s", progress, got, want)
+		}
+	}
+	if got := ids(CandidateFilters{Sort: SortNewest}); got[0] != moussa {
+		t.Errorf("newest first: %v", got)
+	}
+	if got := ids(CandidateFilters{Sort: SortName}); got[0] != awa {
+		t.Errorf("by name (Ba before Diop): %v", got)
+	}
+	page, _ := f.service.Search(ctx, CandidateFilters{Progress: ProgressApplied}, 0, 20)
+	if item := page.Items[0]; !item.HasProfile || !item.HasCV || item.ApplicationsSent != 1 || !item.EmailVerified {
+		t.Errorf("facts = %+v", item)
+	}
+}
+
 func TestCandidateDetailCountsWithoutRevealingContent(t *testing.T) {
 	f := newAccountFixture(t)
 	awa := newUser(t, "candidate", "Awa")
