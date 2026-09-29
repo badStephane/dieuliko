@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { parseApiData, requireResponse, type ApiClient, type RequestOptions } from "@/lib/api-client";
 
+const trendSchema = z.object({ last7Days: z.number(), previous7Days: z.number() });
+
 export const statsSchema = z.object({
   candidates: z.object({
     total: z.number(),
@@ -15,6 +17,15 @@ export const statsSchema = z.object({
   applications: z.object({ sent: z.number(), withdrawn: z.number() }),
   companies: z.object({ visible: z.number(), hidden: z.number(), verified: z.number() }),
   topCompanies: z.array(z.object({ slug: z.string(), name: z.string(), city: z.string(), applications: z.number() })),
+  /** Last 7 days against the 7 before. */
+  trends: z.object({ signups: trendSchema, applications: trendSchema, letters: trendSchema }),
+  /** Listings to complete, with the rules of the list's quality tabs. */
+  quality: z.object({ noLogo: z.number(), noDescription: z.number(), noContact: z.number(), unverified: z.number() }),
+  /** The last 30 days, oldest first; `day` is a Dakar date ("2026-09-29"). */
+  daily: z.array(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), signups: z.number(), applications: z.number() })),
+  recentCandidates: z.array(z.object({ id: z.string().uuid(), firstName: z.string(), lastName: z.string(), createdAt: z.string() })),
+  /** Which listing received an application and when; never who applied. */
+  recentApplications: z.array(z.object({ slug: z.string(), name: z.string(), createdAt: z.string() })),
 });
 
 /** A listing as the back-office edits it; empty strings are missing optional values. */

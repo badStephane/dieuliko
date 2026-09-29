@@ -23,6 +23,11 @@ const STATS = {
   applications: { sent: 2, withdrawn: 1 },
   companies: { visible: 1893, hidden: 1, verified: 3 },
   topCompanies: [{ slug: "cabinet-ndiaye", name: "Cabinet Ndiaye", city: "Dakar", applications: 2 }],
+  trends: { signups: { last7Days: 1, previous7Days: 0 }, applications: { last7Days: 2, previous7Days: 1 }, letters: { last7Days: 1, previous7Days: 3 } },
+  quality: { noLogo: 1890, noDescription: 1200, noContact: 40, unverified: 1891 },
+  daily: [{ day: "2026-09-29", signups: 1, applications: 2 }],
+  recentCandidates: [{ id: "1c8d4f3b-6e5a-4b9c-8d2e-3f4a5b6c7d8e", firstName: "Awa", lastName: "Diop", createdAt: "2026-09-29T10:00:00Z" }],
+  recentApplications: [{ slug: "cabinet-ndiaye", name: "Cabinet Ndiaye", createdAt: "2026-09-29T11:00:00Z" }],
 };
 
 const COMPANY = {

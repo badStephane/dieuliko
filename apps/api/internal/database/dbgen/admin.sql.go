@@ -239,23 +239,45 @@ SELECT
     (SELECT count(*) FROM applications WHERE status = 'withdrawn') AS applications_withdrawn,
     (SELECT count(*) FROM companies WHERE hidden_at IS NULL) AS companies_visible,
     (SELECT count(*) FROM companies WHERE hidden_at IS NOT NULL) AS companies_hidden,
-    (SELECT count(*) FROM companies WHERE verified) AS companies_verified
+    (SELECT count(*) FROM companies WHERE verified) AS companies_verified,
+    -- Last 7 days against the 7 before, for the dashboard's trends.
+    (SELECT count(*) FROM users WHERE role = 'candidate'
+       AND created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS candidates_previous_7_days,
+    (SELECT count(*) FROM applications WHERE created_at >= now() - interval '7 days') AS applications_last_7_days,
+    (SELECT count(*) FROM applications
+      WHERE created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS applications_previous_7_days,
+    (SELECT count(*) FROM cover_letters WHERE created_at >= now() - interval '7 days') AS letters_last_7_days,
+    (SELECT count(*) FROM cover_letters
+      WHERE created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS letters_previous_7_days,
+    -- Listings to complete; same rules as the quality filters of SearchAdminCompanies.
+    (SELECT count(*) FROM companies WHERE logo_key IS NULL AND coalesce(logo_url, '') = '') AS companies_no_logo,
+    (SELECT count(*) FROM companies WHERE coalesce(description, '') = '') AS companies_no_description,
+    (SELECT count(*) FROM companies
+      WHERE coalesce(email, '') = '' AND coalesce(phone, '') = '' AND coalesce(website, '') = '') AS companies_no_contact
 `
 
 type GetAdminStatsRow struct {
-	Candidates            int64
-	CandidatesLast7Days   int64
-	CandidatesLast30Days  int64
-	VerifiedEmails        int64
-	SuspendedCandidates   int64
-	ProfilesWithContent   int64
-	Cvs                   int64
-	Letters               int64
-	ApplicationsSent      int64
-	ApplicationsWithdrawn int64
-	CompaniesVisible      int64
-	CompaniesHidden       int64
-	CompaniesVerified     int64
+	Candidates                int64
+	CandidatesLast7Days       int64
+	CandidatesLast30Days      int64
+	VerifiedEmails            int64
+	SuspendedCandidates       int64
+	ProfilesWithContent       int64
+	Cvs                       int64
+	Letters                   int64
+	ApplicationsSent          int64
+	ApplicationsWithdrawn     int64
+	CompaniesVisible          int64
+	CompaniesHidden           int64
+	CompaniesVerified         int64
+	CandidatesPrevious7Days   int64
+	ApplicationsLast7Days     int64
+	ApplicationsPrevious7Days int64
+	LettersLast7Days          int64
+	LettersPrevious7Days      int64
+	CompaniesNoLogo           int64
+	CompaniesNoDescription    int64
+	CompaniesNoContact        int64
 }
 
 // Key numbers of the back-office dashboard. "With content" mirrors candidate.Profile.HasContent.
@@ -276,6 +298,14 @@ func (q *Queries) GetAdminStats(ctx context.Context) (GetAdminStatsRow, error) {
 		&i.CompaniesVisible,
 		&i.CompaniesHidden,
 		&i.CompaniesVerified,
+		&i.CandidatesPrevious7Days,
+		&i.ApplicationsLast7Days,
+		&i.ApplicationsPrevious7Days,
+		&i.LettersLast7Days,
+		&i.LettersPrevious7Days,
+		&i.CompaniesNoLogo,
+		&i.CompaniesNoDescription,
+		&i.CompaniesNoContact,
 	)
 	return i, err
 }
@@ -425,6 +455,114 @@ func (q *Queries) ListCandidateObjectKeys(ctx context.Context, userID uuid.UUID)
 			return nil, err
 		}
 		items = append(items, object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDailyActivity = `-- name: ListDailyActivity :many
+SELECT day::date AS day,
+       (SELECT count(*) FROM users u
+         WHERE u.role = 'candidate' AND (u.created_at AT TIME ZONE 'Africa/Dakar')::date = day::date) AS signups,
+       (SELECT count(*) FROM applications a WHERE (a.created_at AT TIME ZONE 'Africa/Dakar')::date = day::date) AS applications
+FROM generate_series((now() AT TIME ZONE 'Africa/Dakar')::date - 29, (now() AT TIME ZONE 'Africa/Dakar')::date, interval '1 day') AS day
+ORDER BY day
+`
+
+type ListDailyActivityRow struct {
+	Day          time.Time
+	Signups      int64
+	Applications int64
+}
+
+// Sign-ups and applications per day over the last 30 days (Dakar dates, today included), oldest first.
+func (q *Queries) ListDailyActivity(ctx context.Context) ([]ListDailyActivityRow, error) {
+	rows, err := q.db.Query(ctx, listDailyActivity)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDailyActivityRow
+	for rows.Next() {
+		var i ListDailyActivityRow
+		if err := rows.Scan(&i.Day, &i.Signups, &i.Applications); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentApplications = `-- name: ListRecentApplications :many
+SELECT c.slug, c.name, a.created_at
+FROM applications a
+JOIN companies c ON c.id = a.company_id
+ORDER BY a.created_at DESC
+LIMIT 5
+`
+
+type ListRecentApplicationsRow struct {
+	Slug      string
+	Name      string
+	CreatedAt time.Time
+}
+
+// The newest applications: to which listing and when, never who or what was written.
+func (q *Queries) ListRecentApplications(ctx context.Context) ([]ListRecentApplicationsRow, error) {
+	rows, err := q.db.Query(ctx, listRecentApplications)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRecentApplicationsRow
+	for rows.Next() {
+		var i ListRecentApplicationsRow
+		if err := rows.Scan(&i.Slug, &i.Name, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentCandidates = `-- name: ListRecentCandidates :many
+SELECT id, first_name, last_name, created_at FROM users WHERE role = 'candidate' ORDER BY created_at DESC LIMIT 5
+`
+
+type ListRecentCandidatesRow struct {
+	ID        uuid.UUID
+	FirstName string
+	LastName  string
+	CreatedAt time.Time
+}
+
+// The newest candidate accounts (admins excluded).
+func (q *Queries) ListRecentCandidates(ctx context.Context) ([]ListRecentCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listRecentCandidates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRecentCandidatesRow
+	for rows.Next() {
+		var i ListRecentCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

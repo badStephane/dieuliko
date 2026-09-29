@@ -128,3 +128,49 @@ func TestStatsCountsCandidatesTheirWorkAndCompanies(t *testing.T) {
 		t.Errorf("top companies = %+v, want %+v", stats.TopCompanies, want)
 	}
 }
+
+func TestStatsGiveTrendsQualityGapsDailyActivityAndRecentEvents(t *testing.T) {
+	resetDB(t)
+	ctx := context.Background()
+	awa := newUser(t, "candidate", "Awa")
+	old := newUser(t, "candidate", "Old")
+	exec(t, "UPDATE users SET created_at = now() - interval '10 days' WHERE id = $1", old)
+	bare := seedCompany(t, "atelier-sow", "Atelier Sow")
+	full := seedCompany(t, "cabinet-ndiaye", "Cabinet Ndiaye")
+	exec(t, `UPDATE companies SET description = 'Audit', email = 'contact@ndiaye.sn', verified = true,
+		logo_key = 'logos/0b0b0b0b-0b0b-0b0b-0b0b-0b0b0b0b0b0b.png' WHERE id = $1`, full)
+	sendApplication(t, awa, bare)
+	sendApplication(t, old, full)
+	exec(t, "UPDATE applications SET created_at = now() - interval '9 days' WHERE user_id = $1", old)
+	exec(t, "INSERT INTO cover_letters (user_id, company_id, content) VALUES ($1, $2, 'Lettre')", awa, bare)
+
+	stats, err := NewStatsService(testPool).Get(ctx)
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+
+	wantTrends := Trends{
+		Signups:      Trend{Last7Days: 1, Previous7Days: 1},
+		Applications: Trend{Last7Days: 1, Previous7Days: 1},
+		Letters:      Trend{Last7Days: 1, Previous7Days: 0},
+	}
+	if stats.Trends != wantTrends {
+		t.Errorf("trends = %+v, want %+v", stats.Trends, wantTrends)
+	}
+	if stats.Quality != (QualityStats{NoLogo: 1, NoDescription: 1, NoContact: 1, Unverified: 1}) {
+		t.Errorf("quality = %+v", stats.Quality)
+	}
+	if len(stats.Daily) != 30 {
+		t.Fatalf("daily has %d days, want 30", len(stats.Daily))
+	}
+	today := stats.Daily[29]
+	if today.Signups != 1 || today.Applications != 1 || stats.Daily[0].Day >= today.Day {
+		t.Errorf("daily = first %+v, today %+v", stats.Daily[0], today)
+	}
+	if len(stats.RecentCandidates) != 2 || stats.RecentCandidates[0].FirstName != "Awa" {
+		t.Errorf("recent candidates = %+v", stats.RecentCandidates)
+	}
+	if len(stats.RecentApplications) != 2 || stats.RecentApplications[0].Slug != "atelier-sow" {
+		t.Errorf("recent applications = %+v", stats.RecentApplications)
+	}
+}

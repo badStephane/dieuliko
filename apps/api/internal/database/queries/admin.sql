@@ -16,7 +16,21 @@ SELECT
     (SELECT count(*) FROM applications WHERE status = 'withdrawn') AS applications_withdrawn,
     (SELECT count(*) FROM companies WHERE hidden_at IS NULL) AS companies_visible,
     (SELECT count(*) FROM companies WHERE hidden_at IS NOT NULL) AS companies_hidden,
-    (SELECT count(*) FROM companies WHERE verified) AS companies_verified;
+    (SELECT count(*) FROM companies WHERE verified) AS companies_verified,
+    -- Last 7 days against the 7 before, for the dashboard's trends.
+    (SELECT count(*) FROM users WHERE role = 'candidate'
+       AND created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS candidates_previous_7_days,
+    (SELECT count(*) FROM applications WHERE created_at >= now() - interval '7 days') AS applications_last_7_days,
+    (SELECT count(*) FROM applications
+      WHERE created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS applications_previous_7_days,
+    (SELECT count(*) FROM cover_letters WHERE created_at >= now() - interval '7 days') AS letters_last_7_days,
+    (SELECT count(*) FROM cover_letters
+      WHERE created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS letters_previous_7_days,
+    -- Listings to complete; same rules as the quality filters of SearchAdminCompanies.
+    (SELECT count(*) FROM companies WHERE logo_key IS NULL AND coalesce(logo_url, '') = '') AS companies_no_logo,
+    (SELECT count(*) FROM companies WHERE coalesce(description, '') = '') AS companies_no_description,
+    (SELECT count(*) FROM companies
+      WHERE coalesce(email, '') = '' AND coalesce(phone, '') = '' AND coalesce(website, '') = '') AS companies_no_contact;
 
 -- Companies that received the most applications in the last 30 days (sent or since withdrawn).
 -- name: ListTopCompaniesByApplications :many
@@ -27,6 +41,27 @@ WHERE a.created_at >= now() - interval '30 days'
 GROUP BY c.id
 ORDER BY applications DESC, c.name
 LIMIT 10;
+
+-- Sign-ups and applications per day over the last 30 days (Dakar dates, today included), oldest first.
+-- name: ListDailyActivity :many
+SELECT day::date AS day,
+       (SELECT count(*) FROM users u
+         WHERE u.role = 'candidate' AND (u.created_at AT TIME ZONE 'Africa/Dakar')::date = day::date) AS signups,
+       (SELECT count(*) FROM applications a WHERE (a.created_at AT TIME ZONE 'Africa/Dakar')::date = day::date) AS applications
+FROM generate_series((now() AT TIME ZONE 'Africa/Dakar')::date - 29, (now() AT TIME ZONE 'Africa/Dakar')::date, interval '1 day') AS day
+ORDER BY day;
+
+-- The newest candidate accounts (admins excluded).
+-- name: ListRecentCandidates :many
+SELECT id, first_name, last_name, created_at FROM users WHERE role = 'candidate' ORDER BY created_at DESC LIMIT 5;
+
+-- The newest applications: to which listing and when, never who or what was written.
+-- name: ListRecentApplications :many
+SELECT c.slug, c.name, a.created_at
+FROM applications a
+JOIN companies c ON c.id = a.company_id
+ORDER BY a.created_at DESC
+LIMIT 5;
 
 -- Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all), by
 -- a quality gap to fix (see admin.Quality*; NULL = all) and by words that must all appear in search_text (LIKE
