@@ -16,6 +16,8 @@ interface ApplyPanelProps {
   readonly isProfileReady: boolean;
   readonly hasCv: boolean;
   readonly hasSavedLetter: boolean;
+  /** The saved letter still holds bracketed blanks of the template. */
+  readonly hasBlanks: boolean;
   /** The letter on screen differs from the saved one, which is what would be sent. */
   readonly hasUnsavedChanges: boolean;
   /** The application already sent to this company, if any. */
@@ -72,7 +74,7 @@ function SentNotice({ application, companyName }: { readonly application: Applic
 }
 
 /** Sends the saved letter, the profile and the CV to the company's Dieuliko inbox, once everything is ready. */
-export function ApplyPanel({ slug, companyName, isProfileReady, hasCv, hasSavedLetter, hasUnsavedChanges, initial }: ApplyPanelProps) {
+export function ApplyPanel({ slug, companyName, isProfileReady, hasCv, hasSavedLetter, hasBlanks, hasUnsavedChanges, initial }: ApplyPanelProps) {
   const [application, setApplication] = useState<Application | null>(initial);
   const [isConfirming, setIsConfirming] = useState(false);
   const [result, setResult] = useState<ApplicationResult | null>(null);
@@ -82,6 +84,8 @@ export function ApplyPanel({ slug, companyName, isProfileReady, hasCv, hasSavedL
     { label: "Profil complété", isMet: isProfileReady, fix: { href: CANDIDATE_PROFILE_PATH, label: "Compléter mon profil" } },
     { label: "CV ajouté", isMet: hasCv, fix: { href: CANDIDATE_HOME_PATH, label: "Ajouter mon CV" } },
     { label: "Lettre enregistrée", isMet: hasSavedLetter && !hasUnsavedChanges },
+    // Only listed when it matters: most letters never had blanks.
+    ...(hasBlanks ? [{ label: "Passages entre crochets remplacés", isMet: false }] : []),
   ];
   const isReady = requirements.every((requirement) => requirement.isMet);
 

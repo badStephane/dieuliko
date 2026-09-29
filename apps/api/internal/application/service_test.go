@@ -247,6 +247,23 @@ func TestApplyNamesEveryMissingPiece(t *testing.T) {
 	}
 }
 
+func TestApplyRefusesALetterWithBlanksLeft(t *testing.T) {
+	requireDB(t)
+	seedCompany(t, companySlug)
+	f := newFixture()
+	f.letters.content = "Madame, Monsieur,\n\nJe suis disponible [date].\n\nAwa Diop"
+
+	_, err := f.service.Apply(context.Background(), newApplicant(t), companySlug)
+
+	var validation *ValidationError
+	if !errors.As(err, &validation) || !strings.Contains(validation.Fields["letter"], "crochets") {
+		t.Fatalf("err = %v, want a letter error about the blanks", err)
+	}
+	if keys := f.store.keys(); len(keys) != 0 {
+		t.Errorf("stored files = %v, want none", keys)
+	}
+}
+
 func TestApplyRefusesBeforeCopyingAnything(t *testing.T) {
 	requireDB(t)
 	seedCompany(t, companySlug)

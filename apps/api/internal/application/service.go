@@ -29,6 +29,7 @@ const (
 
 	msgNoProfile = "Complétez d’abord votre profil (titre, expériences ou compétences)."
 	msgNoLetter  = "Enregistrez d’abord votre lettre de motivation pour cette entreprise."
+	msgBlanks    = "Votre lettre contient encore des passages entre crochets : remplacez-les, puis enregistrez-la."
 	msgNoCV      = "Ajoutez d’abord votre CV (PDF) dans votre espace candidat."
 )
 
@@ -117,6 +118,8 @@ func (s *Service) gather(ctx context.Context, userID uuid.UUID, slug string) (ma
 		missing["letter"] = msgNoLetter
 	} else if err != nil {
 		return material{}, fmt.Errorf("apply: load letter: %w", err)
+	} else if assistant.HasBlanks(letter.Content) {
+		missing["letter"] = msgBlanks
 	}
 	cv, file, err := s.cvs.Open(ctx, userID)
 	if errors.Is(err, candidate.ErrNoCV) {

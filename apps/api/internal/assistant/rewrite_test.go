@@ -223,3 +223,20 @@ func TestCleanAnswerCutsLongTextsAtASentenceEnd(t *testing.T) {
 		t.Errorf("got %d characters: %q", utf8.RuneCountInString(got), got)
 	}
 }
+
+func TestHasBlanks(t *testing.T) {
+	tests := []struct {
+		text string
+		want bool
+	}{
+		{"Je suis disponible [date].", true},
+		{"Je postule chez [entreprise ou cadre] depuis 2024.", true},
+		{"Je suis disponible dès maintenant.", false},
+		{"Un crochet seul [ ou vide [] ou blanc [  ] ne compte pas.", false},
+	}
+	for _, tt := range tests {
+		if got := HasBlanks(tt.text); got != tt.want {
+			t.Errorf("HasBlanks(%q) = %v, want %v", tt.text, got, tt.want)
+		}
+	}
+}

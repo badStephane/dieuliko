@@ -255,6 +255,7 @@ export function LetterEditor({ slug, companyName, authorName, initial, isProfile
         isProfileReady={isProfileReady}
         hasCv={hasCv}
         hasSavedLetter={letter !== null}
+        hasBlanks={letter !== null && blanksLeft(letter.content) > 0}
         hasUnsavedChanges={isEditing && isDirty}
         initial={application}
       />

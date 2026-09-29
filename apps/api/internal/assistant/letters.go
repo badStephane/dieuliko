@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -26,6 +27,15 @@ const (
 	// maxDescriptionInPrompt keeps a long directory description from crowding out the profile.
 	maxDescriptionInPrompt = 600
 )
+
+// blank matches a passage of the letter template still to fill in, like "[poste visé]"; the web app counts
+// them with the same pattern.
+var blank = regexp.MustCompile(`\[[^\[\]\n]*[^\s\[\]][^\[\]\n]*\]`)
+
+// HasBlanks reports whether a letter still holds bracketed blanks of the template.
+func HasBlanks(text string) bool {
+	return blank.MatchString(text)
+}
 
 // ErrNoLetter is returned when the candidate has no letter for the company.
 var ErrNoLetter = errors.New("no cover letter for this company")
