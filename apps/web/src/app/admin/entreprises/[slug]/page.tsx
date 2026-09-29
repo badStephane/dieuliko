@@ -9,7 +9,7 @@ import { CompanyStatus } from "@/components/admin/CompanyStatus";
 import { LogoField } from "@/components/admin/LogoField";
 import { ADMIN_CARD, SECONDARY_ACTION, SECTION_TITLE } from "@/components/admin/styles";
 import { UnavailableNotice } from "@/components/admin/UnavailableNotice";
-import { ADMIN_COMPANIES_PATH, adminCompanyPath, adminLogoUrl } from "@/features/admin/paths";
+import { ADMIN_COMPANIES_PATH, adminCompanyPath, adminLogoUrl, LOGO_FAILED } from "@/features/admin/paths";
 import { loadCompany } from "@/features/admin/server";
 import { requireAdmin } from "@/features/auth/server";
 import { companyHref } from "@/features/companies/search-params";
@@ -23,8 +23,9 @@ export const metadata: Metadata = {
 const SLUG_PATTERN = /^[a-z0-9-]{1,120}$/;
 const BACK = { href: ADMIN_COMPANIES_PATH, label: "Toutes les entreprises" };
 
-export default async function AdminCompanyPage({ params }: PageProps<"/admin/entreprises/[slug]">) {
+export default async function AdminCompanyPage({ params, searchParams }: PageProps<"/admin/entreprises/[slug]">) {
   const { slug } = await params;
+  const hasLogoFailed = (await searchParams).logo === LOGO_FAILED;
   await requireAdmin(adminCompanyPath(slug));
   if (!SLUG_PATTERN.test(slug)) notFound();
   const loaded = await loadCompany(slug);
@@ -59,6 +60,9 @@ export default async function AdminCompanyPage({ params }: PageProps<"/admin/ent
             <h2 id="company-logo" className={SECTION_TITLE}>
               Logo
             </h2>
+            {hasLogoFailed && !company.logoVersion && (
+              <UnavailableNotice>La fiche est créée, mais le logo choisi n’a pas pu être enregistré. Ajoutez-le de nouveau.</UnavailableNotice>
+            )}
             <LogoField slug={company.slug} name={company.name} sector={company.sector} logoVersion={company.logoVersion} />
           </section>
         }

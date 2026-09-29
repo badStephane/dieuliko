@@ -9,6 +9,8 @@ import { saveCompanyAction, type AdminResult } from "@/features/admin/actions";
 import { pathId } from "@/features/candidate/profile-form";
 import { getSectorLabel, SECTORS } from "@/features/companies/sectors";
 import { CompanyCard } from "@/components/companies/CompanyCard";
+import { logoFileError } from "@/features/companies/logo";
+import { LogoDropZone, useObjectUrl } from "./LogoField";
 import { missingFields, previewCompany, sameValues, SIZE_OPTIONS, SOCIAL_NETWORKS, toInput, valuesFrom, type CompanyTextField } from "./company-form";
 import { SelectField, type SelectOption } from "./SelectField";
 
@@ -36,6 +38,14 @@ function withCurrent(options: readonly SelectOption[], current: string, label: (
 
 const SECTOR_OPTIONS: readonly SelectOption[] = [{ value: "", label: "Choisir un secteur" }, ...SECTORS.map(({ slug, label }) => ({ value: slug, label }))];
 
+/** The logo chosen for a new listing, as the action takes it; undefined when there is none. */
+function logoPayload(file: File | null): FormData | undefined {
+  if (!file) return undefined;
+  const form = new FormData();
+  form.append("file", file);
+  return form;
+}
+
 /** Moves focus to the first field the result complains about, once it is rendered. */
 function focusFirstError(fields: Readonly<Record<string, string>> | undefined) {
   const first = fields ? Object.keys(fields)[0] : undefined;
@@ -45,6 +55,10 @@ function focusFirstError(fields: Readonly<Record<string, string>> | undefined) {
 /** Creates or edits a listing of the directory. */
 export function CompanyForm({ slug, company, logo, logoUrl = null, status, footer }: CompanyFormProps) {
   const formId = useId();
+  // A new listing's logo waits in the browser until the listing exists (see saveCompanyAction).
+  const [pendingLogo, setPendingLogo] = useState<File | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const pendingLogoUrl = useObjectUrl(pendingLogo);
   const [saved, setSaved] = useState<CompanyInput>(() => valuesFrom(company));
   const [values, setValues] = useState<CompanyInput>(() => valuesFrom(company));
   const [result, setResult] = useState<AdminResult | null>(null);
@@ -69,7 +83,7 @@ export function CompanyForm({ slug, company, logo, logoUrl = null, status, foote
     const submitted = values;
     startTransition(async () => {
       // A creation redirects to the new listing's page and brings no result back.
-      const outcome: AdminResult | undefined = await saveCompanyAction(slug, toInput(submitted));
+      const outcome: AdminResult | undefined = await saveCompanyAction(slug, toInput(submitted), logoPayload(pendingLogo));
       if (!outcome) return;
       setResult(outcome);
       if (outcome.status === "success") setSaved(submitted);
@@ -80,12 +94,35 @@ export function CompanyForm({ slug, company, logo, logoUrl = null, status, foote
   const knownNetworks: ReadonlySet<string> = new Set(SOCIAL_NETWORKS.map((network) => network.key));
   const otherNetworks = Object.keys(values.socialLinks).filter((network) => !knownNetworks.has(network));
 
-  const preview = previewCompany(values, { slug: slug ?? "", logoUrl, verified: company?.verified ?? false });
+  const preview = previewCompany(values, { slug: slug ?? "", logoUrl: pendingLogoUrl ?? logoUrl, verified: company?.verified ?? false });
+
+  function pickLogo(file: File | undefined) {
+    const problem = logoFileError(file);
+    setLogoError(problem);
+    if (!problem && file) setPendingLogo(file);
+  }
+
+  const newLogo = (
+    <section aria-labelledby={`${formId}-logo`} className={CARD}>
+      <h2 id={`${formId}-logo`} className="text-[22px] leading-[30px] font-semibold tab:text-[24px]">
+        Logo <span className="text-[17px] font-normal text-muted">(facultatif)</span>
+      </h2>
+      <LogoDropZone
+        name={values.name}
+        sector={values.sector}
+        shownUrl={pendingLogoUrl}
+        isBusy={isPending}
+        onPick={pickLogo}
+        onRemove={pendingLogo ? () => setPendingLogo(null) : undefined}
+      />
+      <Feedback result={logoError ? { status: "error", message: logoError } : null} />
+    </section>
+  );
 
   return (
     <div className="grid grid-cols-1 gap-6 desk:grid-cols-[minmax(0,1fr)_340px] desk:items-start">
       <div className="flex min-w-0 flex-col gap-6">
-        {logo}
+        {logo ?? (slug === null ? newLogo : null)}
         <form id={formId} onSubmit={submit} noValidate className="flex flex-col gap-6">
           <ProfileSection id="company-identity" title="Identité" description="Les champs sans mention « facultatif » sont obligatoires.">
             <TextInput {...text("name")} label="Nom de l’entreprise" autoComplete="off" />

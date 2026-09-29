@@ -141,6 +141,30 @@ describe("company actions", () => {
     expect(request.revalidated).toContain("/entreprises");
   });
 
+  it("create a listing with its logo, then open its page", async () => {
+    stubApi({ ...ME, "POST /admin/companies": { status: 201, data: COMPANY }, "PUT /admin/companies/cabinet-ndiaye/logo": { data: { ...COMPANY, logoVersion: "0b0b.png" } } });
+
+    expect(await signalOf(saveCompanyAction(null, INPUT, logoForm()))).toEqual({ kind: "redirect", url: "/admin/entreprises/cabinet-ndiaye" });
+    expect(calls).toContain("PUT /admin/companies/cabinet-ndiaye/logo");
+  });
+
+  it("keep a created listing whose logo was refused, and say so on its page", async () => {
+    const refused = { status: 422, error: { code: "validation_failed", message: "Certains champs sont invalides.", fields: { file: "Cette image est illisible." } } };
+    stubApi({ ...ME, "POST /admin/companies": { status: 201, data: COMPANY }, "PUT /admin/companies/cabinet-ndiaye/logo": refused });
+
+    expect(await signalOf(saveCompanyAction(null, INPUT, logoForm()))).toEqual({ kind: "redirect", url: "/admin/entreprises/cabinet-ndiaye?logo=echec" });
+  });
+
+  it("do not send a file that is not an accepted image", async () => {
+    stubApi({ ...ME, "POST /admin/companies": { status: 201, data: COMPANY } });
+
+    expect(await signalOf(saveCompanyAction(null, INPUT, logoForm(["<svg/>"], "image/svg+xml")))).toEqual({
+      kind: "redirect",
+      url: "/admin/entreprises/cabinet-ndiaye?logo=echec",
+    });
+    expect(calls).not.toContain("PUT /admin/companies/cabinet-ndiaye/logo");
+  });
+
   it("reject a malformed form without calling the API", async () => {
     stubApi(ME);
 

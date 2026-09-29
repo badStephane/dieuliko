@@ -9,7 +9,15 @@ import { LOGO_MISSING, logoFileError } from "@/features/companies/logo";
 import { companyHref } from "@/features/companies/search-params";
 import { COMPANIES_PATH } from "@/lib/navigation";
 import { BULK_ACTIONS, companyInputSchema, MAX_BULK_SLUGS, type BulkAction } from "./admin-api";
-import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, adminCandidatePath, adminCompanyPath } from "./paths";
+import {
+  ADMIN_AUDIT_PATH,
+  ADMIN_CANDIDATES_PATH,
+  ADMIN_COMPANIES_PATH,
+  ADMIN_HOME_PATH,
+  adminCandidatePath,
+  adminCompanyPath,
+  LOGO_FAILED,
+} from "./paths";
 import { getAdminApi } from "./server";
 
 const INVALID_REQUEST = "La demande n’a pas pu être lue. Rechargez la page puis réessayez.";
@@ -38,8 +46,11 @@ function revalidateCandidate(id: string): void {
   for (const path of [ADMIN_CANDIDATES_PATH, adminCandidatePath(id), ADMIN_HOME_PATH]) revalidatePath(path);
 }
 
-/** Saves a listing: edits it when `slug` is given, otherwise creates it and opens its page. */
-export async function saveCompanyAction(slug: unknown, input: unknown): Promise<AdminResult> {
+/**
+ * Saves a listing: edits it when `slug` is given, otherwise creates it and opens its page. A new listing's logo
+ * (`logo`'s "file" field) is sent once it exists; if that fails the listing stays and its page says so.
+ */
+export async function saveCompanyAction(slug: unknown, input: unknown, logo?: unknown): Promise<AdminResult> {
   const parsedSlug = slug === null ? null : slugSchema.safeParse(slug);
   await requireAdmin(parsedSlug?.success ? adminCompanyPath(parsedSlug.data) : ADMIN_COMPANIES_PATH);
   const parsed = companyInputSchema.safeParse(input);
@@ -57,8 +68,23 @@ export async function saveCompanyAction(slug: unknown, input: unknown): Promise<
   } catch (error: unknown) {
     return failure(error, returnTo, true);
   }
+  const isLogoSaved = await sendNewLogo(created, logo);
   revalidateCompany(created);
-  redirect(adminCompanyPath(created));
+  redirect(isLogoSaved ? adminCompanyPath(created) : `${adminCompanyPath(created)}?logo=${LOGO_FAILED}`);
+}
+
+/** Sends the logo chosen while creating a listing; true when there was none to send or it was saved. */
+async function sendNewLogo(slug: string, logo: unknown): Promise<boolean> {
+  const file = logo instanceof FormData ? logo.get("file") : null;
+  if (file === null) return true;
+  if (logoFileError(file) || !(file instanceof File)) return false;
+  try {
+    await getAdminApi().uploadLogo(slug, file, await requestContext());
+    return true;
+  } catch (error: unknown) {
+    console.error("New listing logo not saved", error);
+    return false;
+  }
 }
 
 async function toggleCompany(slug: unknown, flag: unknown, change: "hidden" | "verified"): Promise<AdminResult> {

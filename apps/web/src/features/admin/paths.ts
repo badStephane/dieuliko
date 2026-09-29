@@ -18,3 +18,6 @@ export function adminCandidatePath(id: string): string {
 export function adminLogoUrl(slug: string, version: string): string {
   return `${adminCompanyPath(slug)}/logo?v=${encodeURIComponent(version)}`;
 }
+
+/** `?logo=` value telling a new listing's page that the logo chosen at creation could not be saved. */
+export const LOGO_FAILED = "echec";
