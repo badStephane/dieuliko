@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"strconv"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/database/dbgen"
+	"github.com/badStephane/dieuliko/apps/api/internal/listing"
 	"github.com/badStephane/dieuliko/apps/api/internal/logo"
 	"github.com/badStephane/dieuliko/apps/api/internal/storage"
 )
@@ -105,14 +105,13 @@ type CompanyPage struct {
 
 // CompanyService moderates the directory; every change is recorded in admin_audit. Logos go to store.
 type CompanyService struct {
-	db     DB
-	store  storage.Store
-	logger *slog.Logger
+	db    DB
+	logos *listing.Logos
 }
 
 // NewCompanyService builds the service.
 func NewCompanyService(db DB, store storage.Store, logger *slog.Logger) *CompanyService {
-	return &CompanyService{db: db, store: store, logger: logger}
+	return &CompanyService{db: db, logos: listing.NewLogos(db, store, logger)}
 }
 
 // Search lists listings, hidden ones included, by name.
@@ -206,7 +205,7 @@ func (s *CompanyService) Update(ctx context.Context, adminID uuid.UUID, slug str
 		if err := q.UpdateAdminCompany(ctx, updateParams(slug, clean, links)); err != nil {
 			return fmt.Errorf("admin update company: %w", err)
 		}
-		return recordAudit(ctx, q, adminID, "company.update", "company", slug, changedFields(current.CompanyInput, clean))
+		return recordAudit(ctx, q, adminID, "company.update", "company", slug, listing.ChangedFields(current.CompanyInput, clean))
 	})
 	if err != nil {
 		return AdminCompany{}, err
@@ -250,7 +249,7 @@ func (s *CompanyService) toggle(ctx context.Context, adminID uuid.UUID, slug, ac
 
 // validate trims the input and checks every field, the sector against the taxonomy.
 func (s *CompanyService) validate(ctx context.Context, input CompanyInput) (CompanyInput, error) {
-	clean, problems := validateCompany(input)
+	clean, problems := listing.Validate(input)
 	if problems["sector"] == "" {
 		exists, err := dbgen.New(s.db).SectorExists(ctx, clean.Sector)
 		if err != nil {
@@ -308,29 +307,6 @@ func fromAdminRow(row dbgen.GetAdminCompanyRow) (AdminCompany, error) {
 		Source:    row.Source,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Applications: int(row.Applications), Letters: int(row.Letters),
 	}, nil
-}
-
-// changedFields lists the JSON names of the fields that differ, in form order.
-func changedFields(before, after CompanyInput) []string {
-	pairs := []struct {
-		name          string
-		before, after string
-	}{
-		{"name", before.Name, after.Name}, {"sector", before.Sector, after.Sector}, {"city", before.City, after.City},
-		{"companyType", before.CompanyType, after.CompanyType}, {"description", before.Description, after.Description},
-		{"website", before.Website, after.Website}, {"email", before.Email, after.Email}, {"phone", before.Phone, after.Phone},
-		{"address", before.Address, after.Address}, {"size", before.Size, after.Size},
-	}
-	changed := []string{}
-	for _, pair := range pairs {
-		if pair.before != pair.after {
-			changed = append(changed, pair.name)
-		}
-	}
-	if !maps.Equal(before.SocialLinks, after.SocialLinks) {
-		changed = append(changed, "socialLinks")
-	}
-	return changed
 }
 
 // recordAudit keeps who did what; fields holds names only, never values.
