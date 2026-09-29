@@ -70,6 +70,9 @@ type AdminCompany struct {
 	Source      string     `json:"source"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
+	// Applications (sent or withdrawn) block the deletion; Letters are deleted with the listing.
+	Applications int `json:"applications"`
+	Letters      int `json:"letters"`
 }
 
 // CompanySummary is one line of the back-office company list.
@@ -303,7 +306,7 @@ func fromAdminRow(row dbgen.GetAdminCompanyRow) (AdminCompany, error) {
 		},
 		Slug: row.Slug, LogoVersion: logo.VersionOf(row.LogoKey), Verified: row.Verified, HiddenAt: row.HiddenAt, CuratedAt: row.CuratedAt,
 		Source:    row.Source,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Applications: int(row.Applications), Letters: int(row.Letters),
 	}, nil
 }
 

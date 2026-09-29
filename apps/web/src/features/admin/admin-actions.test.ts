@@ -32,6 +32,7 @@ vi.mock("next/cache", () => ({ revalidatePath: (path: string) => request.revalid
 import { SESSION_COOKIE } from "@/features/auth/server";
 import {
   bulkCompaniesAction,
+  deleteCompanyAction,
   deleteCandidateAction,
   removeCompanyLogoAction,
   saveCompanyAction,
@@ -68,7 +69,7 @@ const ME = { "GET /auth/me": { data: ADMIN } };
 const COMPANY = {
   slug: "cabinet-ndiaye", logoVersion: null, name: "Cabinet Ndiaye", sector: "finance-comptabilite", city: "Dakar", companyType: "", description: "",
   website: "", email: "", phone: "", address: "", size: "", socialLinks: {}, verified: false, hiddenAt: null, curatedAt: null,
-  source: "scraped", createdAt: "2026-09-28T10:00:00Z", updatedAt: "2026-09-28T10:00:00Z",
+  source: "scraped", createdAt: "2026-09-28T10:00:00Z", updatedAt: "2026-09-28T10:00:00Z", applications: 0, letters: 0,
 };
 const INPUT = { name: "Cabinet Ndiaye", sector: "finance-comptabilite", city: "Dakar", companyType: "", description: "", website: "", email: "", phone: "", address: "", size: "", socialLinks: {} };
 const CANDIDATE_ID = "1c8d4f3b-6e5a-4b9c-8d2e-3f4a5b6c7d8e";
@@ -191,6 +192,22 @@ describe("logo actions", () => {
 
     expect(await removeCompanyLogoAction("cabinet-ndiaye")).toEqual({ status: "success", message: "Le logo est retiré." });
     expect(request.revalidated).toContain("/entreprises/cabinet-ndiaye");
+  });
+});
+
+describe("company deletion", () => {
+  it("delete a listing once its name is confirmed, then go back to the list", async () => {
+    stubApi({ ...ME, "POST /admin/companies/cabinet-ndiaye/deletion": {} });
+
+    expect(await signalOf(deleteCompanyAction("cabinet-ndiaye", "Cabinet Ndiaye"))).toEqual({ kind: "redirect", url: "/admin/entreprises" });
+    expect(request.revalidated).toEqual(expect.arrayContaining(["/entreprises", "/entreprises/cabinet-ndiaye", "/admin/journal"]));
+  });
+
+  it("explain why a listing with applications cannot be deleted", async () => {
+    const message = "Des candidats ont postulé auprès de cette entreprise : masquez la fiche plutôt que de la supprimer.";
+    stubApi({ ...ME, "POST /admin/companies/cabinet-ndiaye/deletion": { status: 409, error: { code: "company_has_applications", message } } });
+
+    expect(await deleteCompanyAction("cabinet-ndiaye", "Cabinet Ndiaye")).toEqual({ status: "error", message });
   });
 });
 

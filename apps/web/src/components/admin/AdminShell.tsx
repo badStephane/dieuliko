@@ -1,12 +1,12 @@
 "use client";
 
-import { Building2, ExternalLink, LayoutDashboard, Menu, Users, X, type LucideIcon } from "lucide-react";
+import { Building2, ExternalLink, History, LayoutDashboard, Menu, Users, X, type LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { LogOutButton } from "@/components/auth/AuthForms";
-import { ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, ADMIN_NEW_COMPANY_PATH } from "@/features/admin/paths";
+import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, ADMIN_NEW_COMPANY_PATH } from "@/features/admin/paths";
 
 interface NavItem {
   readonly href: string;
@@ -33,6 +33,7 @@ const ITEMS: readonly NavItem[] = [
     isCurrent: (pathname) => within(pathname, ADMIN_COMPANIES_PATH) || pathname === ADMIN_NEW_COMPANY_PATH,
   },
   { href: ADMIN_CANDIDATES_PATH, label: "Candidats", icon: Users, isCurrent: (pathname) => within(pathname, ADMIN_CANDIDATES_PATH) },
+  { href: ADMIN_AUDIT_PATH, label: "Journal", icon: History, isCurrent: (pathname) => pathname === ADMIN_AUDIT_PATH },
 ];
 
 function initials(firstName: string, lastName: string): string {

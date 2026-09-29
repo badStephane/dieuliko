@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { CompanyDeletion } from "@/components/admin/CompanyDeletion";
 import { CompanyForm } from "@/components/admin/CompanyForm";
 import { CompanyStatus } from "@/components/admin/CompanyStatus";
 import { LogoField } from "@/components/admin/LogoField";
@@ -57,6 +58,7 @@ export default async function AdminCompanyPage({ params }: PageProps<"/admin/ent
         <LogoField slug={company.slug} name={company.name} sector={company.sector} logoVersion={company.logoVersion} />
       </section>
       <CompanyForm slug={company.slug} company={company} />
+      <CompanyDeletion slug={company.slug} name={company.name} applications={company.applications} letters={company.letters} />
     </>
   );
 }

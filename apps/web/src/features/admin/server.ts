@@ -7,6 +7,7 @@ import {
   createAdminApi,
   type AdminApi,
   type AdminCompany,
+  type AuditEntry,
   type CandidateDetail,
   type CandidateSummary,
   type CompanySummary,
@@ -14,7 +15,7 @@ import {
   type Page,
   type Stats,
 } from "./admin-api";
-import { ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, adminCandidatePath, adminCompanyPath } from "./paths";
+import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, adminCandidatePath, adminCompanyPath } from "./paths";
 
 export function getAdminApi(): AdminApi {
   return createAdminApi(getServerApiClient());
@@ -55,4 +56,8 @@ export function loadCandidates(query: ListQuery): Promise<Page<CandidateSummary>
 export function loadCandidate(id: string): Promise<{ readonly candidate: CandidateDetail | null } | null> {
   if (!z.string().uuid().safeParse(id).success) return Promise.resolve({ candidate: null });
   return read(adminCandidatePath(id), "Admin candidate", async (api, context) => ({ candidate: await api.getCandidate(id, context) }));
+}
+
+export function loadAudit(query: ListQuery): Promise<Page<AuditEntry> | null> {
+  return read(ADMIN_AUDIT_PATH, "Admin audit", (api, context) => api.listAudit(query, context));
 }

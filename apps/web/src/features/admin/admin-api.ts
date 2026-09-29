@@ -42,6 +42,9 @@ export const adminCompanySchema = companyInputSchema.extend({
   source: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Applications (sent or withdrawn) block the deletion; letters go with the listing. */
+  applications: z.number().int().nonnegative(),
+  letters: z.number().int().nonnegative(),
 });
 
 const companySummarySchema = adminCompanySchema.pick({
@@ -76,6 +79,19 @@ export const candidateDetailSchema = candidateSummarySchema.extend({
   applicationsWithdrawn: z.number(),
 });
 
+export const auditEntrySchema = z.object({
+  id: z.number(),
+  action: z.string(),
+  targetType: z.enum(["company", "user"]),
+  targetId: z.string(),
+  /** The listing's name or the candidate's name today; "" once it is gone. */
+  targetLabel: z.string(),
+  changedFields: z.array(z.string()),
+  /** "" once the admin's account is gone. */
+  adminName: z.string(),
+  createdAt: z.string(),
+});
+
 const pageOf = <T extends z.ZodTypeAny>(item: T) => z.object({ items: z.array(item), total: z.number().int().nonnegative() });
 
 export type Stats = z.infer<typeof statsSchema>;
@@ -84,6 +100,7 @@ export type AdminCompany = z.infer<typeof adminCompanySchema>;
 export type CompanySummary = z.infer<typeof companySummarySchema>;
 export type CandidateSummary = z.infer<typeof candidateSummarySchema>;
 export type CandidateDetail = z.infer<typeof candidateDetailSchema>;
+export type AuditEntry = z.infer<typeof auditEntrySchema>;
 export interface Page<T> {
   readonly items: readonly T[];
   readonly total: number;
@@ -135,6 +152,10 @@ export interface AdminApi {
   setCandidateSuspended(id: string, suspended: boolean, context: RequestOptions): Promise<CandidateDetail>;
   /** Erases the account; `confirmEmail` must repeat its address. */
   deleteCandidate(id: string, confirmEmail: string, context: RequestOptions): Promise<void>;
+  /** Erases a listing; `confirmName` must repeat its name. Refused ("company_has_applications") once candidates applied. */
+  deleteCompany(slug: string, confirmName: string, context: RequestOptions): Promise<void>;
+  /** The activity log, newest first; `status` is "company", "user" or "" for everything. */
+  listAudit(query: ListQuery, context: RequestOptions): Promise<Page<AuditEntry>>;
   /** Hides, shows, verifies or unverifies several listings; returns how many changed. */
   bulkCompanies(action: BulkAction, slugs: readonly string[], context: RequestOptions): Promise<number>;
 }
@@ -193,6 +214,14 @@ export function createAdminApi(client: ApiClient): AdminApi {
     },
     async deleteCandidate(id, confirmEmail, context) {
       await client.post(`${candidatePath(id)}/deletion`, { confirmEmail }, context);
+    },
+    async deleteCompany(slug, confirmName, context) {
+      await client.post(`${companyPath(slug)}/deletion`, { confirmName }, context);
+    },
+    async listAudit({ status, offset, limit }, context) {
+      const params = { ...(status ? { type: status } : {}), offset: String(offset), limit: String(limit) };
+      const response = requireResponse(await client.get("/admin/audit", { ...context, params }), "/admin/audit");
+      return parseApiData(pageOf(auditEntrySchema), response, "admin audit");
     },
     async bulkCompanies(action, slugs, context) {
       const response = await client.post("/admin/companies/bulk", { action, slugs }, context);

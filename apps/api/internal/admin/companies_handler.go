@@ -36,6 +36,7 @@ type CompanyManager interface {
 	RemoveLogo(ctx context.Context, adminID uuid.UUID, slug string) (AdminCompany, error)
 	LogoKey(ctx context.Context, slug string) (*string, error)
 	Bulk(ctx context.Context, adminID uuid.UUID, action string, slugs []string) (BulkResult, error)
+	Delete(ctx context.Context, adminID uuid.UUID, slug, confirmName string) error
 }
 
 func (h *Handler) registerCompanies(admin *gin.RouterGroup) {
@@ -47,6 +48,7 @@ func (h *Handler) registerCompanies(admin *gin.RouterGroup) {
 	companies.PUT("/:slug", h.updateCompany)
 	companies.PUT("/:slug/visibility", h.setCompanyVisibility)
 	companies.PUT("/:slug/verification", h.setCompanyVerification)
+	companies.POST("/:slug/deletion", h.deleteCompany)
 	h.registerLogos(companies)
 }
 

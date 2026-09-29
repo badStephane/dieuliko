@@ -45,6 +45,8 @@ const COMPANY = {
   source: "admin",
   createdAt: "2026-09-28T10:00:00Z",
   updatedAt: "2026-09-28T10:00:00Z",
+  applications: 0,
+  letters: 0,
 };
 
 const CANDIDATE = {

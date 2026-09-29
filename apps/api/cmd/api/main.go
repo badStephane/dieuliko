@@ -136,6 +136,7 @@ func run() error {
 			Stats:     admin.NewStatsService(pool),
 			Companies: admin.NewCompanyService(pool, objectStore, logger),
 			Logos:     objectStore,
+			Audit:     admin.NewAuditService(pool),
 			Accounts:  admin.NewAccountService(pool, objectStore, mailer, logger, strings.TrimRight(cfg.AppBaseURL, "/")+contactPath),
 		},
 		AdminLimiter: adminLimiter,

@@ -9,7 +9,7 @@ import { LOGO_MISSING, logoFileError } from "@/features/companies/logo";
 import { companyHref } from "@/features/companies/search-params";
 import { COMPANIES_PATH } from "@/lib/navigation";
 import { BULK_ACTIONS, companyInputSchema, MAX_BULK_SLUGS, type BulkAction } from "./admin-api";
-import { ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, adminCandidatePath, adminCompanyPath } from "./paths";
+import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, adminCandidatePath, adminCompanyPath } from "./paths";
 import { getAdminApi } from "./server";
 
 const INVALID_REQUEST = "La demande n’a pas pu être lue. Rechargez la page puis réessayez.";
@@ -117,6 +117,21 @@ export async function removeCompanyLogoAction(slug: unknown): Promise<AdminResul
   }
   revalidateCompany(parsed.data);
   return { status: "success", message: "Le logo est retiré." };
+}
+
+/** Erases a listing once its name is typed again, then goes back to the list. */
+export async function deleteCompanyAction(slug: unknown, confirmName: unknown): Promise<AdminResult> {
+  const parsed = z.object({ slug: slugSchema, confirmName: z.string().max(200) }).safeParse({ slug, confirmName });
+  await requireAdmin(parsed.success ? adminCompanyPath(parsed.data.slug) : ADMIN_COMPANIES_PATH);
+  if (!parsed.success) return { status: "error", message: INVALID_REQUEST };
+  try {
+    await getAdminApi().deleteCompany(parsed.data.slug, parsed.data.confirmName, await requestContext());
+  } catch (error: unknown) {
+    return failure(error, adminCompanyPath(parsed.data.slug), false);
+  }
+  revalidateCompany(parsed.data.slug);
+  revalidatePath(ADMIN_AUDIT_PATH);
+  redirect(ADMIN_COMPANIES_PATH);
 }
 
 const BULK_MESSAGES: Readonly<Record<BulkAction, readonly [string, string]>> = {

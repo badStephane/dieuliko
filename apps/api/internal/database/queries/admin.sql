@@ -60,17 +60,22 @@ WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') =
   AND search_text LIKE ALL (
       SELECT '%' || normalize_text(word) || '%' FROM unnest(sqlc.arg(words)::text[]) AS word);
 
+-- What refers to the listing is counted: applications block its deletion, letters go with it.
 -- name: GetAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
-FROM companies
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at,
+       (SELECT count(*) FROM applications a WHERE a.company_id = c.id) AS applications,
+       (SELECT count(*) FROM cover_letters l WHERE l.company_id = c.id) AS letters
+FROM companies c
 WHERE slug = $1;
 
 -- Locks the listing while an edit compares it with the new values.
 -- name: LockAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
-FROM companies
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at,
+       (SELECT count(*) FROM applications a WHERE a.company_id = c.id) AS applications,
+       (SELECT count(*) FROM cover_letters l WHERE l.company_id = c.id) AS letters
+FROM companies c
 WHERE slug = $1
 FOR UPDATE;
 
@@ -107,6 +112,10 @@ SELECT logo_key FROM companies WHERE slug = $1 FOR UPDATE;
 -- A logo is an edit by the team: the listing becomes curated.
 -- name: SetCompanyLogo :exec
 UPDATE companies SET logo_key = sqlc.narg(logo_key), curated_at = now() WHERE slug = sqlc.arg(slug);
+
+-- Letters written for the listing go with it (ON DELETE CASCADE); applications must have been checked first.
+-- name: DeleteAdminCompany :one
+DELETE FROM companies WHERE slug = $1 RETURNING logo_key;
 
 -- name: InsertAdminAudit :exec
 INSERT INTO admin_audit (admin_id, action, target_type, target_id, changed_fields)
@@ -168,3 +177,21 @@ SELECT a.cv_object_key FROM applications a WHERE a.user_id = sqlc.arg(user_id)::
 -- Cascades to sessions, tokens, profile, CV metadata, letters and applications.
 -- name: DeleteCandidate :execrows
 DELETE FROM users WHERE id = $1 AND role = 'candidate';
+
+-- Back-office activity, newest first, optionally for one kind of target ('company' / 'user'). The admin's name and the
+-- target's current label are looked up live, empty once the account or listing is gone (nothing personal is kept here).
+-- name: ListAdminAudit :many
+SELECT a.id, a.action, a.target_type, a.target_id, a.changed_fields, a.created_at,
+       coalesce(u.first_name || ' ' || u.last_name, '')::text AS admin_name,
+       coalesce(CASE a.target_type
+                    WHEN 'company' THEN (SELECT c.name FROM companies c WHERE c.slug = a.target_id)
+                    ELSE (SELECT t.first_name || ' ' || t.last_name FROM users t WHERE t.id::text = a.target_id)
+                END, '')::text AS target_label
+FROM admin_audit a
+LEFT JOIN users u ON u.id = a.admin_id
+WHERE sqlc.narg(target_type)::text IS NULL OR a.target_type = sqlc.narg(target_type)::text
+ORDER BY a.id DESC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountAdminAudit :one
+SELECT count(*) FROM admin_audit WHERE sqlc.narg(target_type)::text IS NULL OR target_type = sqlc.narg(target_type)::text;

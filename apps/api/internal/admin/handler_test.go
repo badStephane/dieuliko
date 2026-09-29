@@ -103,6 +103,7 @@ type fakeCompanies struct {
 
 	gotBulkAction string
 	gotSlugs      []string
+	gotConfirm    string
 }
 
 var testCompany = AdminCompany{CompanyInput: CompanyInput{Name: "Cabinet Ndiaye", Sector: "finance-comptabilite", City: "Dakar"}, Slug: "cabinet-ndiaye"}
@@ -150,6 +151,11 @@ func (f *fakeCompanies) RemoveLogo(_ context.Context, adminID uuid.UUID, slug st
 func (f *fakeCompanies) Bulk(_ context.Context, adminID uuid.UUID, action string, slugs []string) (BulkResult, error) {
 	f.gotAdmin, f.gotBulkAction, f.gotSlugs = adminID, action, slugs
 	return BulkResult{Updated: len(slugs)}, f.err
+}
+
+func (f *fakeCompanies) Delete(_ context.Context, adminID uuid.UUID, slug, confirmName string) error {
+	f.gotAdmin, f.gotSlug, f.gotConfirm = adminID, slug, confirmName
+	return f.err
 }
 
 func (f *fakeCompanies) LogoKey(_ context.Context, slug string) (*string, error) {

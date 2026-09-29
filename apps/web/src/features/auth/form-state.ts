@@ -33,6 +33,7 @@ const USER_FACING_CODES: ReadonlySet<string> = new Set([
   "not_found",
   "email_unverified",
   "already_applied",
+  "company_has_applications",
   "daily_limit",
   "account_suspended",
 ]);

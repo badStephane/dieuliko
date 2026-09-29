@@ -26,6 +26,8 @@ const company: AdminCompany = {
   source: "scraping",
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-02-01T00:00:00Z",
+  applications: 0,
+  letters: 0,
 };
 
 describe("company form values", () => {

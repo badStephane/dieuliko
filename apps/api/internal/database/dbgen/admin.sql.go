@@ -24,6 +24,17 @@ func (q *Queries) CompanySlugTaken(ctx context.Context, slug string) (bool, erro
 	return exists, err
 }
 
+const countAdminAudit = `-- name: CountAdminAudit :one
+SELECT count(*) FROM admin_audit WHERE $1::text IS NULL OR target_type = $1::text
+`
+
+func (q *Queries) CountAdminAudit(ctx context.Context, targetType *string) (int64, error) {
+	row := q.db.QueryRow(ctx, countAdminAudit, targetType)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAdminCandidates = `-- name: CountAdminCandidates :one
 SELECT count(*)
 FROM users
@@ -70,6 +81,18 @@ func (q *Queries) CountAdminCompanies(ctx context.Context, arg CountAdminCompani
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteAdminCompany = `-- name: DeleteAdminCompany :one
+DELETE FROM companies WHERE slug = $1 RETURNING logo_key
+`
+
+// Letters written for the listing go with it (ON DELETE CASCADE); applications must have been checked first.
+func (q *Queries) DeleteAdminCompany(ctx context.Context, slug string) (*string, error) {
+	row := q.db.QueryRow(ctx, deleteAdminCompany, slug)
+	var logo_key *string
+	err := row.Scan(&logo_key)
+	return logo_key, err
 }
 
 const deleteCandidate = `-- name: DeleteCandidate :execrows
@@ -138,33 +161,38 @@ func (q *Queries) GetAdminCandidate(ctx context.Context, id uuid.UUID) (GetAdmin
 
 const getAdminCompany = `-- name: GetAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
-FROM companies
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at,
+       (SELECT count(*) FROM applications a WHERE a.company_id = c.id) AS applications,
+       (SELECT count(*) FROM cover_letters l WHERE l.company_id = c.id) AS letters
+FROM companies c
 WHERE slug = $1
 `
 
 type GetAdminCompanyRow struct {
-	Slug        string
-	Name        string
-	Sector      string
-	CompanyType *string
-	Description *string
-	Website     *string
-	Email       *string
-	Phone       *string
-	City        string
-	Address     *string
-	Size        *string
-	SocialLinks []byte
-	LogoKey     *string
-	Verified    bool
-	HiddenAt    *time.Time
-	CuratedAt   *time.Time
-	Source      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Slug         string
+	Name         string
+	Sector       string
+	CompanyType  *string
+	Description  *string
+	Website      *string
+	Email        *string
+	Phone        *string
+	City         string
+	Address      *string
+	Size         *string
+	SocialLinks  []byte
+	LogoKey      *string
+	Verified     bool
+	HiddenAt     *time.Time
+	CuratedAt    *time.Time
+	Source       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	Applications int64
+	Letters      int64
 }
 
+// What refers to the listing is counted: applications block its deletion, letters go with it.
 func (q *Queries) GetAdminCompany(ctx context.Context, slug string) (GetAdminCompanyRow, error) {
 	row := q.db.QueryRow(ctx, getAdminCompany, slug)
 	var i GetAdminCompanyRow
@@ -188,6 +216,8 @@ func (q *Queries) GetAdminCompany(ctx context.Context, slug string) (GetAdminCom
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Applications,
+		&i.Letters,
 	)
 	return i, err
 }
@@ -313,6 +343,68 @@ func (q *Queries) InsertAdminCompany(ctx context.Context, arg InsertAdminCompany
 	return err
 }
 
+const listAdminAudit = `-- name: ListAdminAudit :many
+SELECT a.id, a.action, a.target_type, a.target_id, a.changed_fields, a.created_at,
+       coalesce(u.first_name || ' ' || u.last_name, '')::text AS admin_name,
+       coalesce(CASE a.target_type
+                    WHEN 'company' THEN (SELECT c.name FROM companies c WHERE c.slug = a.target_id)
+                    ELSE (SELECT t.first_name || ' ' || t.last_name FROM users t WHERE t.id::text = a.target_id)
+                END, '')::text AS target_label
+FROM admin_audit a
+LEFT JOIN users u ON u.id = a.admin_id
+WHERE $1::text IS NULL OR a.target_type = $1::text
+ORDER BY a.id DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListAdminAuditParams struct {
+	TargetType *string
+	RowOffset  int32
+	RowLimit   int32
+}
+
+type ListAdminAuditRow struct {
+	ID            int64
+	Action        string
+	TargetType    string
+	TargetID      string
+	ChangedFields []string
+	CreatedAt     time.Time
+	AdminName     string
+	TargetLabel   string
+}
+
+// Back-office activity, newest first, optionally for one kind of target ('company' / 'user'). The admin's name and the
+// target's current label are looked up live, empty once the account or listing is gone (nothing personal is kept here).
+func (q *Queries) ListAdminAudit(ctx context.Context, arg ListAdminAuditParams) ([]ListAdminAuditRow, error) {
+	rows, err := q.db.Query(ctx, listAdminAudit, arg.TargetType, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAdminAuditRow
+	for rows.Next() {
+		var i ListAdminAuditRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.TargetType,
+			&i.TargetID,
+			&i.ChangedFields,
+			&i.CreatedAt,
+			&i.AdminName,
+			&i.TargetLabel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCandidateObjectKeys = `-- name: ListCandidateObjectKeys :many
 SELECT cv.object_key FROM candidate_cvs cv WHERE cv.user_id = $1::uuid
 UNION ALL
@@ -385,32 +477,36 @@ func (q *Queries) ListTopCompaniesByApplications(ctx context.Context) ([]ListTop
 
 const lockAdminCompany = `-- name: LockAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
-FROM companies
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at,
+       (SELECT count(*) FROM applications a WHERE a.company_id = c.id) AS applications,
+       (SELECT count(*) FROM cover_letters l WHERE l.company_id = c.id) AS letters
+FROM companies c
 WHERE slug = $1
 FOR UPDATE
 `
 
 type LockAdminCompanyRow struct {
-	Slug        string
-	Name        string
-	Sector      string
-	CompanyType *string
-	Description *string
-	Website     *string
-	Email       *string
-	Phone       *string
-	City        string
-	Address     *string
-	Size        *string
-	SocialLinks []byte
-	LogoKey     *string
-	Verified    bool
-	HiddenAt    *time.Time
-	CuratedAt   *time.Time
-	Source      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Slug         string
+	Name         string
+	Sector       string
+	CompanyType  *string
+	Description  *string
+	Website      *string
+	Email        *string
+	Phone        *string
+	City         string
+	Address      *string
+	Size         *string
+	SocialLinks  []byte
+	LogoKey      *string
+	Verified     bool
+	HiddenAt     *time.Time
+	CuratedAt    *time.Time
+	Source       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	Applications int64
+	Letters      int64
 }
 
 // Locks the listing while an edit compares it with the new values.
@@ -437,6 +533,8 @@ func (q *Queries) LockAdminCompany(ctx context.Context, slug string) (LockAdminC
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Applications,
+		&i.Letters,
 	)
 	return i, err
 }

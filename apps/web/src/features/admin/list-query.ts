@@ -7,6 +7,8 @@ const MAX_QUERY_LENGTH = 100;
 /** French `?statut=` values of the list pages, and the API status each one stands for. */
 export const COMPANY_STATUSES: Readonly<Record<string, string>> = { visibles: "visible", masquees: "hidden" };
 export const CANDIDATE_STATUSES: Readonly<Record<string, string>> = { actifs: "active", suspendus: "suspended" };
+/** French `?statut=` values of the activity log: the kind of target. */
+export const AUDIT_TYPES: Readonly<Record<string, string>> = { entreprises: "company", candidats: "user" };
 
 type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
 

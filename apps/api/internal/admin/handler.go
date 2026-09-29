@@ -31,6 +31,7 @@ type Services struct {
 	Stats     StatsReader
 	Companies CompanyManager
 	Accounts  AccountManager
+	Audit     AuditReader
 	// Logos holds the company logos (the store of CompanyService).
 	Logos storage.Store
 }
@@ -64,6 +65,7 @@ func NewHandler(services Services, limiter *httpx.RateLimiter) *Handler {
 func (h *Handler) Register(group *gin.RouterGroup, requireUser gin.HandlerFunc) {
 	admin := group.Group("/admin", requireUser, RequireAdmin)
 	admin.GET("/stats", h.stats)
+	admin.GET("/audit", h.listAudit)
 	h.registerCompanies(admin)
 	h.registerAccounts(admin)
 }
