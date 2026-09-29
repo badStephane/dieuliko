@@ -69,7 +69,7 @@ func validateProfile(input ProfileInput, now time.Time) (ProfileInput, error) {
 	now = now.UTC() // months are stored and compared in UTC
 	lastMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	phone, isPhoneValid := normalizePhone(input.Phone)
+	phone, isPhoneValid := NormalizePhone(input.Phone)
 	if !isPhoneValid {
 		errs.add("phone", "Ce numéro de téléphone n’est pas valide.")
 	}
@@ -90,9 +90,9 @@ func validateProfile(input ProfileInput, now time.Time) (ProfileInput, error) {
 	return out, nil
 }
 
-// normalizePhone returns the number in E.164. Numbers without an international prefix are Senegalese.
+// NormalizePhone returns the number in E.164. Numbers without an international prefix are Senegalese.
 // An empty number is valid (the phone is optional).
-func normalizePhone(raw string) (string, bool) {
+func NormalizePhone(raw string) (string, bool) {
 	compact := strings.Map(func(r rune) rune {
 		if strings.ContainsRune(" .-() ", r) {
 			return -1

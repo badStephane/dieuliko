@@ -142,6 +142,17 @@ func TestRegisterReturnsUserAndSession(t *testing.T) {
 	}
 }
 
+func TestRegisterPassesTheAccountType(t *testing.T) {
+	accounts := &fakeAccounts{}
+
+	status, _ := call(t, newRouter(accounts, generousLimiters()), http.MethodPost, "/v1/auth/register",
+		`{"email":"rh@sonatel.sn","password":"correct horse","firstName":"Awa","lastName":"Diop","accountType":"company"}`, "")
+
+	if status != http.StatusCreated || accounts.gotRegister.AccountType != RoleCompany {
+		t.Errorf("status %d, input %+v", status, accounts.gotRegister)
+	}
+}
+
 func TestDomainErrorsMapToStatusAndCode(t *testing.T) {
 	tests := []struct {
 		err    error

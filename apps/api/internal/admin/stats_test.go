@@ -105,6 +105,8 @@ func TestStatsCountsCandidatesTheirWorkAndCompanies(t *testing.T) {
 	sendApplication(t, awa, ndiaye)
 	sendApplication(t, moussa, ndiaye)
 	sendApplication(t, awa, sall)
+	// A company account asking for a listing: counted in the claims queue, never as a candidate.
+	exec(t, "INSERT INTO company_claims (user_id, company_id, job_title) VALUES ($1, $2, 'DRH')", newUser(t, "company", "Rh"), sall)
 	exec(t, `UPDATE applications SET status = 'withdrawn', withdrawn_at = now(), first_name = NULL, last_name = NULL, email = NULL,
 		profile = NULL, letter = NULL, cv_object_key = NULL, cv_file_name = NULL, cv_size_bytes = NULL WHERE user_id = $1`, moussa)
 
@@ -120,7 +122,7 @@ func TestStatsCountsCandidatesTheirWorkAndCompanies(t *testing.T) {
 	if stats.Letters != 2 || stats.Applications != (ApplicationStats{Sent: 2, Withdrawn: 1}) {
 		t.Errorf("letters = %d, applications = %+v", stats.Letters, stats.Applications)
 	}
-	if stats.Companies != (CompanyStats{Visible: 2, Hidden: 1, Verified: 1}) {
+	if stats.Companies != (CompanyStats{Visible: 2, Hidden: 1, Verified: 1, PendingClaims: 1}) {
 		t.Errorf("companies = %+v", stats.Companies)
 	}
 	want := []TopCompany{{Slug: "cabinet-ndiaye", Name: "Cabinet Ndiaye", City: "Dakar", Applications: 2}, {Slug: "sall-btp", Name: "Sall BTP", City: "Dakar", Applications: 1}}

@@ -123,6 +123,21 @@ type Company struct {
 	LogoKey            *string
 }
 
+type CompanyClaim struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	CompanyID      uuid.UUID
+	Status         string
+	JobTitle       string
+	Phone          string
+	Message        string
+	DecisionReason *string
+	ReviewedBy     pgtype.UUID
+	ReviewedAt     *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type CoverLetter struct {
 	UserID    uuid.UUID
 	CompanyID uuid.UUID

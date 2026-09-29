@@ -85,7 +85,7 @@ func (s *Service) Wait() {
 	s.pending.Wait()
 }
 
-// Register atomically creates a candidate account, its verification link and a session,
+// Register atomically creates a candidate or company account, its verification link and a session,
 // then emails the link in the background.
 func (s *Service) Register(ctx context.Context, input RegisterInput) (User, Session, error) {
 	input, err := validateRegistration(input)
@@ -103,7 +103,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (User, Sess
 		verifyToken string
 	)
 	err = s.withTx(ctx, func(q *dbgen.Queries) error {
-		if user, err = insertUser(ctx, q, input, hash, RoleCandidate); err != nil {
+		if user, err = insertUser(ctx, q, input, hash, input.AccountType); err != nil {
 			return err
 		}
 		if verifyToken, err = s.issueEmailToken(ctx, q, user.ID, purposeVerifyEmail, s.cfg.VerifyEmailTTL); err != nil {

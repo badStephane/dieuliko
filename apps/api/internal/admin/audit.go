@@ -27,7 +27,7 @@ type AuditEntry struct {
 
 // AuditFilters narrows the activity log; an empty TargetType lists everything.
 type AuditFilters struct {
-	TargetType string // "company", "user" or ""
+	TargetType string // "company", "user", "claim" or ""
 }
 
 // AuditPage is one page of the activity log and the number of entries.
@@ -78,8 +78,8 @@ func (h *Handler) listAudit(c *gin.Context) {
 		return
 	}
 	targetType := c.Query("type")
-	if targetType != "" && targetType != "company" && targetType != "user" {
-		httpx.Fail(c, http.StatusBadRequest, httpx.CodeBadRequest, "Le paramètre « type » doit valoir company ou user.")
+	if targetType != "" && targetType != "company" && targetType != "user" && targetType != "claim" {
+		httpx.Fail(c, http.StatusBadRequest, httpx.CodeBadRequest, "Le paramètre « type » doit valoir company, user ou claim.")
 		return
 	}
 	page, err := h.services.Audit.List(c.Request.Context(), AuditFilters{TargetType: targetType}, offset, limit)

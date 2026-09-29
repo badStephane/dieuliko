@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"net/mail"
 	"strings"
 	"unicode"
@@ -68,16 +69,20 @@ func validateName(name, label string) string {
 // validateRegistration normalizes the input and reports every invalid field.
 func validateRegistration(input RegisterInput) (RegisterInput, error) {
 	normalized := RegisterInput{
-		Email:     normalizeEmail(input.Email),
-		Password:  input.Password,
-		FirstName: normalizeName(input.FirstName),
-		LastName:  normalizeName(input.LastName),
+		Email:       normalizeEmail(input.Email),
+		Password:    input.Password,
+		FirstName:   normalizeName(input.FirstName),
+		LastName:    normalizeName(input.LastName),
+		AccountType: cmp.Or(input.AccountType, RoleCandidate),
 	}
 	fields := map[string]string{}
 	addField(fields, "email", validateEmail(normalized.Email))
 	addField(fields, "password", validatePassword(normalized.Password))
 	addField(fields, "firstName", validateName(normalized.FirstName, "prénom"))
 	addField(fields, "lastName", validateName(normalized.LastName, "nom"))
+	if normalized.AccountType != RoleCandidate && normalized.AccountType != RoleCompany {
+		addField(fields, "accountType", "Type de compte inconnu.")
+	}
 	if len(fields) > 0 {
 		return RegisterInput{}, &ValidationError{Fields: fields}
 	}

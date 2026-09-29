@@ -17,6 +17,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
+	"github.com/badStephane/dieuliko/apps/api/internal/claim"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
@@ -60,6 +61,8 @@ type Deps struct {
 	// ApplyLimiter budgets application sends and withdrawals per candidate.
 	ApplyLimiter *httpx.RateLimiter
 	Admin        admin.Services
+	// Claims are company accounts' requests to manage a listing.
+	Claims claim.Claims
 	// AdminLimiter budgets back-office changes per admin.
 	AdminLimiter *httpx.RateLimiter
 }
@@ -107,6 +110,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	assistant.NewHandler(deps.Assistant, deps.Letters, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidateSpace)
 	application.NewHandler(deps.Applications, deps.ApplyLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidateSpace)
 	admin.NewHandler(deps.Admin, deps.AdminLimiter).Register(v1, auth.RequireUser(deps.Accounts))
+	claim.NewHandler(deps.Claims).Register(v1, auth.RequireUser(deps.Accounts))
 
 	return router, nil
 }

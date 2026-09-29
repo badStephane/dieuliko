@@ -9,10 +9,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// Roles. Company accounts arrive with the "claim your listing" step.
+// Roles. A company account manages a listing once an admin approved its claim.
 const (
 	RoleCandidate = "candidate"
 	RoleAdmin     = "admin"
+	RoleCompany   = "company"
 )
 
 // Domain errors; handlers translate them into HTTP responses.
@@ -52,10 +53,12 @@ type Session struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-// RegisterInput is what a candidate provides to sign up.
+// RegisterInput is what a person provides to sign up.
 type RegisterInput struct {
 	Email     string
 	Password  string
 	FirstName string
 	LastName  string
+	// AccountType is RoleCandidate (the default when empty) or RoleCompany; admins are created from the CLI.
+	AccountType string
 }

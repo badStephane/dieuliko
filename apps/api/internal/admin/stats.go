@@ -32,6 +32,8 @@ type CompanyStats struct {
 	Visible  int64 `json:"visible"`
 	Hidden   int64 `json:"hidden"`
 	Verified int64 `json:"verified"`
+	// PendingClaims are company accounts' requests waiting for a review.
+	PendingClaims int64 `json:"pendingClaims"`
 }
 
 // TopCompany is a company ranked by the applications it received in the last 30 days.
@@ -122,7 +124,7 @@ func (s *StatsService) Get(ctx context.Context) (Stats, error) {
 		},
 		Letters:      row.Letters,
 		Applications: ApplicationStats{Sent: row.ApplicationsSent, Withdrawn: row.ApplicationsWithdrawn},
-		Companies:    CompanyStats{Visible: row.CompaniesVisible, Hidden: row.CompaniesHidden, Verified: row.CompaniesVerified},
+		Companies:    CompanyStats{Visible: row.CompaniesVisible, Hidden: row.CompaniesHidden, Verified: row.CompaniesVerified, PendingClaims: row.PendingClaims},
 		Trends: Trends{
 			Signups:      Trend{Last7Days: row.CandidatesLast7Days, Previous7Days: row.CandidatesPrevious7Days},
 			Applications: Trend{Last7Days: row.ApplicationsLast7Days, Previous7Days: row.ApplicationsPrevious7Days},

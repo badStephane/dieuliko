@@ -152,6 +152,21 @@ func TestRegisterCreatesAnUnverifiedCandidateWithASession(t *testing.T) {
 	}
 }
 
+func TestRegisterCreatesACompanyAccountThatMustVerifyItsEmail(t *testing.T) {
+	service, mailer := newTestService(t)
+	input := validInput()
+	input.AccountType = RoleCompany
+
+	user, _, err := service.Register(context.Background(), input)
+
+	if err != nil || user.Role != RoleCompany || user.EmailVerified {
+		t.Fatalf("user = %+v, err = %v", user, err)
+	}
+	if path, _ := lastLink(t, service, mailer, "awa.diop@example.sn"); path != verifyEmailPath {
+		t.Errorf("link path = %q, want %q", path, verifyEmailPath)
+	}
+}
+
 func TestRegisterRejectsDuplicateEmailsCaseInsensitively(t *testing.T) {
 	service, _ := newTestService(t)
 	register(t, service)

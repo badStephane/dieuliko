@@ -172,6 +172,7 @@ func TestMountsCandidateRoutesUnderV1BehindASession(t *testing.T) {
 		{http.MethodGet, "/v1/me/applications"},
 		{http.MethodPost, "/v1/me/applications"},
 		{http.MethodGet, "/v1/admin/stats"},
+		{http.MethodGet, "/v1/company/claim"},
 	} {
 		path := route.path
 		rec := do(handler, route.method, path, nil)

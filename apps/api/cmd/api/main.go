@@ -22,6 +22,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/assistant"
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/candidate"
+	"github.com/badStephane/dieuliko/apps/api/internal/claim"
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/database"
@@ -46,6 +47,8 @@ const (
 	cleanupInterval = time.Hour
 	// contactPath is the web page linked from the notices sent to candidates about their account.
 	contactPath = "/contact"
+	// companySpacePath is where an approved company account manages its listing.
+	companySpacePath = "/espace-entreprise"
 )
 
 func main() {
@@ -132,12 +135,17 @@ func run() error {
 		AssistLimiter:   assistLimiter,
 		Applications:    application.NewService(pool, objectStore, profiles, cvs, letters, logger),
 		ApplyLimiter:    applyLimiter,
+		Claims:          claim.NewService(pool),
 		Admin: admin.Services{
 			Stats:     admin.NewStatsService(pool),
 			Companies: admin.NewCompanyService(pool, objectStore, logger),
 			Logos:     objectStore,
 			Audit:     admin.NewAuditService(pool),
-			Accounts:  admin.NewAccountService(pool, objectStore, mailer, logger, strings.TrimRight(cfg.AppBaseURL, "/")+contactPath),
+			Claims: admin.NewClaimService(pool, mailer, logger, admin.ClaimLinks{
+				Contact: strings.TrimRight(cfg.AppBaseURL, "/") + contactPath,
+				Space:   strings.TrimRight(cfg.AppBaseURL, "/") + companySpacePath,
+			}),
+			Accounts: admin.NewAccountService(pool, objectStore, mailer, logger, strings.TrimRight(cfg.AppBaseURL, "/")+contactPath),
 		},
 		AdminLimiter: adminLimiter,
 	})

@@ -89,9 +89,9 @@ func TestNormalizePhone(t *testing.T) {
 		{"+0 123 456 789", "", false},
 	}
 	for _, tt := range tests {
-		got, ok := normalizePhone(tt.raw)
+		got, ok := NormalizePhone(tt.raw)
 		if got != tt.want || ok != tt.ok {
-			t.Errorf("normalizePhone(%q) = %q, %v; want %q, %v", tt.raw, got, ok, tt.want, tt.ok)
+			t.Errorf("NormalizePhone(%q) = %q, %v; want %q, %v", tt.raw, got, ok, tt.want, tt.ok)
 		}
 	}
 }

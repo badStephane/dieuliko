@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -64,9 +65,35 @@ func TestValidateRegistrationNormalizes(t *testing.T) {
 		t.Fatalf("validateRegistration: %v", err)
 	}
 
-	want := RegisterInput{Email: "awa@example.sn", Password: "  8 chars", FirstName: "Awa Marie", LastName: "Diop"}
+	want := RegisterInput{Email: "awa@example.sn", Password: "  8 chars", FirstName: "Awa Marie", LastName: "Diop", AccountType: RoleCandidate}
 	if got != want {
 		t.Errorf("got %+v, want %+v (password must be kept verbatim)", got, want)
+	}
+}
+
+func TestValidateRegistrationAcceptsCandidateAndCompanyAccountsOnly(t *testing.T) {
+	base := RegisterInput{Email: "a@b.sn", Password: "long enough", FirstName: "A", LastName: "B"}
+	tests := []struct {
+		accountType, want string
+		isValid           bool
+	}{
+		{"", RoleCandidate, true},
+		{"candidate", RoleCandidate, true},
+		{"company", RoleCompany, true},
+		{"admin", "", false},
+		{"entreprise", "", false},
+	}
+	for _, tt := range tests {
+		input := base
+		input.AccountType = tt.accountType
+		got, err := validateRegistration(input)
+		var validation *ValidationError
+		switch {
+		case tt.isValid && (err != nil || got.AccountType != tt.want):
+			t.Errorf("accountType %q: got %q, %v", tt.accountType, got.AccountType, err)
+		case !tt.isValid && (!errors.As(err, &validation) || validation.Fields["accountType"] == ""):
+			t.Errorf("accountType %q: err = %v, want an accountType error", tt.accountType, err)
+		}
 	}
 }
 

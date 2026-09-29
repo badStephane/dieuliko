@@ -123,6 +123,8 @@ type registerRequest struct {
 	Password  string `json:"password"`
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
+	// AccountType is "candidate" (default) or "company".
+	AccountType string `json:"accountType"`
 }
 
 type credentialsRequest struct {
@@ -153,7 +155,7 @@ func (h *Handler) register(c *gin.Context) {
 	if !httpx.BindJSON(c, &req) {
 		return
 	}
-	input := RegisterInput{Email: req.Email, Password: req.Password, FirstName: req.FirstName, LastName: req.LastName}
+	input := RegisterInput{Email: req.Email, Password: req.Password, FirstName: req.FirstName, LastName: req.LastName, AccountType: req.AccountType}
 	user, session, err := h.accounts.Register(c.Request.Context(), input)
 	if err != nil {
 		writeError(c, err)

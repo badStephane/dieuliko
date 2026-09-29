@@ -17,6 +17,7 @@ SELECT
     (SELECT count(*) FROM companies WHERE hidden_at IS NULL) AS companies_visible,
     (SELECT count(*) FROM companies WHERE hidden_at IS NOT NULL) AS companies_hidden,
     (SELECT count(*) FROM companies WHERE verified) AS companies_verified,
+    (SELECT count(*) FROM company_claims WHERE status = 'pending') AS pending_claims,
     -- Last 7 days against the 7 before, for the dashboard's trends.
     (SELECT count(*) FROM users WHERE role = 'candidate'
        AND created_at >= now() - interval '14 days' AND created_at < now() - interval '7 days') AS candidates_previous_7_days,
@@ -253,6 +254,8 @@ SELECT a.id, a.action, a.target_type, a.target_id, a.changed_fields, a.created_a
        coalesce(u.first_name || ' ' || u.last_name, '')::text AS admin_name,
        coalesce(CASE a.target_type
                     WHEN 'company' THEN (SELECT c.name FROM companies c WHERE c.slug = a.target_id)
+                    WHEN 'claim' THEN (SELECT c.name FROM company_claims cl JOIN companies c ON c.id = cl.company_id
+                                       WHERE cl.id::text = a.target_id)
                     ELSE (SELECT t.first_name || ' ' || t.last_name FROM users t WHERE t.id::text = a.target_id)
                 END, '')::text AS target_label
 FROM admin_audit a

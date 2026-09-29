@@ -32,6 +32,7 @@ type Services struct {
 	Companies CompanyManager
 	Accounts  AccountManager
 	Audit     AuditReader
+	Claims    ClaimReviewer
 	// Logos holds the company logos (the store of CompanyService).
 	Logos storage.Store
 }
@@ -68,6 +69,7 @@ func (h *Handler) Register(group *gin.RouterGroup, requireUser gin.HandlerFunc) 
 	admin.GET("/audit", h.listAudit)
 	h.registerCompanies(admin)
 	h.registerAccounts(admin)
+	h.registerClaims(admin)
 }
 
 func (h *Handler) stats(c *gin.Context) {
