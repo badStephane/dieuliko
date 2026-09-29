@@ -15,3 +15,9 @@ export function percentOf(part: number, total: number): number {
 export function candidateName(candidate: Pick<CandidateSummary, "firstName" | "lastName" | "email">): string {
   return `${candidate.firstName} ${candidate.lastName}`.trim() || candidate.email;
 }
+
+/** "AD" for Awa Diop; the email's first letter when both names are empty. */
+export function candidateInitials(candidate: Pick<CandidateSummary, "firstName" | "lastName" | "email">): string {
+  const letters = `${candidate.firstName.trim().charAt(0)}${candidate.lastName.trim().charAt(0)}`.toUpperCase();
+  return letters || candidate.email.charAt(0).toUpperCase();
+}

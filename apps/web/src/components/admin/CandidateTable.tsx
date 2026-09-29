@@ -3,15 +3,11 @@ import Link from "next/link";
 import type { CandidateSummary } from "@/features/admin/admin-api";
 import { adminCandidatePath } from "@/features/admin/paths";
 import { formatDate } from "@/lib/format";
+import { CandidateAvatar } from "./CandidateAvatar";
 import { StatusBadge } from "./StatusBadge";
 import { candidateName, countLabel } from "./text";
 
 const CELL = "px-3 py-3 align-middle";
-
-function initials(candidate: CandidateSummary): string {
-  const letters = `${candidate.firstName.charAt(0)}${candidate.lastName.charAt(0)}`.toUpperCase();
-  return letters || candidate.email.charAt(0).toUpperCase();
-}
 
 /** One step of the journey: an icon and a word, never colour alone. */
 function Step({ done, label }: { readonly done: boolean; readonly label: string }) {
@@ -64,9 +60,7 @@ export function CandidateTable({ candidates }: { readonly candidates: readonly C
             <tr key={candidate.id} className="border-b border-line transition-colors duration-150 last:border-b-0 hover:bg-surface/70">
               <td className={`${CELL} pr-5 pl-5 tab:pl-8`}>
                 <Link href={adminCandidatePath(candidate.id)} className="group flex min-h-12 items-center gap-3 focus-visible:outline-2 focus-visible:outline-primary">
-                  <span aria-hidden className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[16px] font-bold text-primary-deep">
-                    {initials(candidate)}
-                  </span>
+                  <CandidateAvatar candidate={candidate} />
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-[16px] leading-6 font-semibold break-words text-ink underline-offset-4 group-hover:underline">{candidateName(candidate)}</span>

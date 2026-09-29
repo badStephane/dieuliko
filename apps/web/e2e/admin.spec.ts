@@ -85,6 +85,21 @@ test.describe("back-office", () => {
     await expect(page.getByRole("navigation", { name: "Étape du parcours" }).getByRole("link", { name: "Sans CV" })).toHaveAttribute("aria-current", "page");
   });
 
+  test("opens a candidate's page with their journey and account", async ({ page }) => {
+    await page.goto("/admin/candidats");
+    const first = page.getByRole("region", { name: "Liste des candidats" }).getByRole("row").nth(1).getByRole("link");
+    test.skip((await first.count()) === 0, "no candidate account in this database");
+    await first.click();
+
+    await expect(page).toHaveURL(/\/admin\/candidats\/[0-9a-f-]{36}$/);
+    const journey = page.getByRole("region", { name: "Parcours" });
+    await expect(journey.getByRole("listitem")).toHaveCount(5);
+    await expect(journey.getByText(/étapes? sur 5/)).toBeVisible();
+    const account = page.getByRole("complementary", { name: "Gestion du compte" }).getByRole("region", { name: "Compte" });
+    await expect(account.getByRole("button", { name: /(Suspendre|Réactiver) le compte/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Supprimer définitivement le compte" })).toBeDisabled();
+  });
+
   test("sends visitors without a session to the login page", async ({ browser }) => {
     const visitor = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await visitor.newPage();
