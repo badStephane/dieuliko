@@ -23,7 +23,7 @@ export default async function VerifyEmailPage({ searchParams }: PageProps<"/veri
         footer={
           <p>
             <Link href={CANDIDATE_HOME_PATH} className={AUTH_LINK_CLASSES}>
-              Aller à mon espace candidat
+              Aller à mon espace
             </Link>
           </p>
         }

@@ -21,7 +21,7 @@ const STATS = {
   candidates: { total: 3, last7Days: 1, last30Days: 2, verifiedEmails: 2, suspended: 0, withProfile: 2, withCv: 1 },
   letters: 4,
   applications: { sent: 2, withdrawn: 1 },
-  companies: { visible: 1893, hidden: 1, verified: 3 },
+  companies: { visible: 1893, hidden: 1, verified: 3, pendingClaims: 2 },
   topCompanies: [{ slug: "cabinet-ndiaye", name: "Cabinet Ndiaye", city: "Dakar", applications: 2 }],
   trends: { signups: { last7Days: 1, previous7Days: 0 }, applications: { last7Days: 2, previous7Days: 1 }, letters: { last7Days: 1, previous7Days: 3 } },
   quality: { noLogo: 1890, noDescription: 1200, noContact: 40, unverified: 1891 },

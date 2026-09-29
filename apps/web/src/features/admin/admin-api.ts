@@ -15,7 +15,7 @@ export const statsSchema = z.object({
   }),
   letters: z.number(),
   applications: z.object({ sent: z.number(), withdrawn: z.number() }),
-  companies: z.object({ visible: z.number(), hidden: z.number(), verified: z.number() }),
+  companies: z.object({ visible: z.number(), hidden: z.number(), verified: z.number(), pendingClaims: z.number() }),
   topCompanies: z.array(z.object({ slug: z.string(), name: z.string(), city: z.string(), applications: z.number() })),
   /** Last 7 days against the 7 before. */
   trends: z.object({ signups: trendSchema, applications: trendSchema, letters: trendSchema }),
@@ -93,7 +93,7 @@ export const candidateDetailSchema = candidateSummarySchema.extend({
 export const auditEntrySchema = z.object({
   id: z.number(),
   action: z.string(),
-  targetType: z.enum(["company", "user"]),
+  targetType: z.enum(["company", "user", "claim"]),
   targetId: z.string(),
   /** The listing's name or the candidate's name today; "" once it is gone. */
   targetLabel: z.string(),

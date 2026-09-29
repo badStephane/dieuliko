@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AuditEntry } from "@/features/admin/admin-api";
-import { adminCandidatePath, adminCompanyPath } from "@/features/admin/paths";
+import { adminCandidatePath, adminClaimPath, adminCompanyPath } from "@/features/admin/paths";
 import { formatDate } from "@/lib/format";
 import { auditActor, auditFields, auditTarget, auditTone, auditVerb, type AuditTone } from "./audit-text";
 
@@ -11,6 +11,12 @@ const DOTS: Readonly<Record<AuditTone, string>> = {
   success: "bg-emerald-600",
   warning: "bg-primary",
   danger: "bg-red-600",
+};
+
+const TARGET_PATHS: Readonly<Record<AuditEntry["targetType"], (id: string) => string>> = {
+  company: adminCompanyPath,
+  user: adminCandidatePath,
+  claim: adminClaimPath,
 };
 
 /** Entries of one day, keeping the API's order (newest first). */
@@ -25,7 +31,7 @@ function byDay(entries: readonly AuditEntry[]): readonly { readonly day: string;
 function Target({ entry }: { readonly entry: AuditEntry }) {
   const label = auditTarget(entry);
   if (!entry.targetLabel.trim()) return <span className="font-semibold">{label}</span>;
-  const href = entry.targetType === "company" ? adminCompanyPath(entry.targetId) : adminCandidatePath(entry.targetId);
+  const href = TARGET_PATHS[entry.targetType](entry.targetId);
   return (
     <Link href={href} className="font-semibold text-ink underline decoration-line underline-offset-4 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-primary">
       {label}

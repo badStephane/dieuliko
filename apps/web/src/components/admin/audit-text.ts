@@ -14,6 +14,9 @@ const ACTIONS: Readonly<Record<string, string>> = {
   "user.suspend": "a suspendu le compte de",
   "user.unsuspend": "a réactivé le compte de",
   "user.delete": "a supprimé le compte de",
+  "claim.approve": "a confié la gestion de la fiche",
+  "claim.reject": "a refusé une demande de gestion de la fiche",
+  "claim.revoke": "a retiré la gestion de la fiche",
 };
 
 /** Names of the listing fields an edit changed, as the form labels them. */
@@ -29,6 +32,7 @@ const FIELDS: Readonly<Record<string, string>> = {
   address: "adresse",
   size: "taille",
   socialLinks: "réseaux sociaux",
+  verified: "vérification",
 };
 
 export type AuditTone = "neutral" | "success" | "warning" | "danger";
@@ -37,6 +41,9 @@ const TONES: Readonly<Record<string, AuditTone>> = {
   "company.verify": "success",
   "company.unhide": "success",
   "user.unsuspend": "success",
+  "claim.approve": "success",
+  "claim.reject": "warning",
+  "claim.revoke": "danger",
   "company.hide": "warning",
   "user.suspend": "warning",
   "company.delete": "danger",
@@ -60,7 +67,8 @@ export function auditActor(entry: Pick<AuditEntry, "adminName">): string {
 export function auditTarget(entry: Pick<AuditEntry, "targetType" | "targetLabel" | "targetId">): string {
   const label = entry.targetLabel.trim();
   if (label) return label;
-  return entry.targetType === "company" ? `${entry.targetId} (supprimée)` : "un compte supprimé";
+  if (entry.targetType === "company") return `${entry.targetId} (supprimée)`;
+  return entry.targetType === "claim" ? "une fiche supprimée" : "un compte supprimé";
 }
 
 /** "nom, ville" for an edit; "" when the action changed no field. */

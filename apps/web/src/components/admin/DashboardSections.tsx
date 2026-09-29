@@ -1,8 +1,8 @@
-import { ChevronRight, ImageOff, FileText, PhoneOff, ShieldCheck, type LucideIcon } from "lucide-react";
+import { BadgeCheck, ChevronRight, ImageOff, FileText, PhoneOff, ShieldCheck, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AuditEntry, Stats } from "@/features/admin/admin-api";
-import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, adminCandidatePath, adminCompanyPath } from "@/features/admin/paths";
+import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_CLAIMS_PATH, ADMIN_COMPANIES_PATH, adminCandidatePath, adminCompanyPath } from "@/features/admin/paths";
 import { formatDate, formatNumber } from "@/lib/format";
 import { auditActor, auditTarget, auditVerb } from "./audit-text";
 import { DailyBarChart } from "./dashboard/DailyBarChart";
@@ -31,6 +31,28 @@ function Kpis({ stats }: { readonly stats: Stats }) {
         </li>
       </ul>
     </section>
+  );
+}
+
+/** Company accounts waiting for a review: shown only when there are some, as each one blocks a company. */
+function PendingClaims({ count }: { readonly count: number }) {
+  if (count === 0) return null;
+  return (
+    <Link
+      href={ADMIN_CLAIMS_PATH}
+      className={`group flex items-center gap-4 rounded-[12px] bg-accent-soft/60 p-5 transition-colors duration-150 hover:bg-accent-soft tab:p-6 ${FOCUS_RING}`}
+    >
+      <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-primary-deep">
+        <BadgeCheck className="size-5" strokeWidth={1.75} />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[18px] leading-7 font-semibold text-ink">
+          {countLabel(count, "demande de gestion de fiche", "demandes de gestion de fiche")} à traiter
+        </span>
+        <span className="text-[15px] leading-[22px] text-ink-deep">Des entreprises attendent votre vérification pour accéder à leur espace.</span>
+      </span>
+      <ChevronRight aria-hidden className="size-5 shrink-0 text-muted transition-transform duration-150 group-hover:translate-x-0.5" />
+    </Link>
   );
 }
 
@@ -250,6 +272,7 @@ export function DashboardSections({ stats, audit }: { readonly stats: Stats; rea
   return (
     <div className="flex flex-col gap-6">
       <Kpis stats={stats} />
+      <PendingClaims count={stats.companies.pendingClaims} />
       <Todo stats={stats} />
       <Charts daily={stats.daily} />
       <div className="grid grid-cols-1 items-start gap-6 desk:grid-cols-2">

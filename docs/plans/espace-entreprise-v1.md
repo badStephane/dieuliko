@@ -34,8 +34,8 @@ Plan validé le 29/09/2026. Les cases cochées suivent l'avancement.
 2. [x] Migration 00008 et rôle `company` à l'inscription (le web accepte le rôle dans le même commit).
 3. [x] API des demandes côté entreprise.
 4. [x] API admin des demandes (approbation, rejet auto des concurrentes, refus, révocation, emails).
-5. [x] Web : inscription entreprise, demande, états de la demande. L'e2e ne crée pas de compte : les emails de dev partent par Brevo (un vrai envoi vers une adresse inventée). À faire : créer un compte entreprise vérifié par la CLI pour l'e2e complet.
-6. [ ] Web admin : file des demandes.
+5. [x] Web : inscription entreprise, demande, états de la demande. L'e2e complet (`e2e/company-claim.spec.ts`) ne tourne qu'avec `E2E_MAILPIT=1`, l'API envoyant alors ses emails à Mailpit : en dev, ils partent sinon par Brevo.
+6. [x] Web admin : file des demandes (`/admin/revendications`), revue, bandeau du tableau de bord, journal.
 7. [ ] `RequireMember` et API d'édition de fiche (migration 00010, importeur, suppression refusée si revendiquée).
 8. [ ] Web `/espace-entreprise/fiche`.
 9. [ ] Migration 00009 et boîte de réception côté API (tests d'isolation d'abord).

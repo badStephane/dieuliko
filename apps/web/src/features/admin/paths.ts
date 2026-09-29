@@ -5,6 +5,7 @@ export const ADMIN_COMPANIES_PATH = "/admin/entreprises";
 export const ADMIN_NEW_COMPANY_PATH = "/admin/nouvelle-entreprise";
 export const ADMIN_CANDIDATES_PATH = "/admin/candidats";
 export const ADMIN_AUDIT_PATH = "/admin/journal";
+export const ADMIN_CLAIMS_PATH = "/admin/revendications";
 
 export function adminCompanyPath(slug: string): string {
   return `${ADMIN_COMPANIES_PATH}/${encodeURIComponent(slug)}`;
@@ -12,6 +13,10 @@ export function adminCompanyPath(slug: string): string {
 
 export function adminCandidatePath(id: string): string {
   return `${ADMIN_CANDIDATES_PATH}/${encodeURIComponent(id)}`;
+}
+
+export function adminClaimPath(id: string): string {
+  return `${ADMIN_CLAIMS_PATH}/${encodeURIComponent(id)}`;
 }
 
 /** The back-office copy of a listing's logo (hidden listings included, never cached). */

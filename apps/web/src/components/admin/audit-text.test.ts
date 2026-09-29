@@ -7,6 +7,16 @@ describe("audit text", () => {
     expect(auditVerb("company.logo_set")).toBe("a changé le logo de");
     expect(auditVerb("user.delete")).toBe("a supprimé le compte de");
     expect(auditVerb("company.inconnue")).toBe("company.inconnue");
+    expect(auditVerb("claim.approve")).toBe("a confié la gestion de la fiche");
+    expect(auditVerb("claim.reject")).toBe("a refusé une demande de gestion de la fiche");
+    expect(auditVerb("claim.revoke")).toBe("a retiré la gestion de la fiche");
+    expect(auditTone("claim.approve")).toBe("success");
+    expect(auditTone("claim.revoke")).toBe("danger");
+  });
+
+  it("names the listing of a claim, even once it is gone", () => {
+    expect(auditTarget({ targetType: "claim", targetLabel: "Sonatel", targetId: "7f1c" })).toBe("Sonatel");
+    expect(auditTarget({ targetType: "claim", targetLabel: "", targetId: "7f1c" })).toBe("une fiche supprimée");
   });
 
   it("colours what removes or restores something", () => {

@@ -20,6 +20,7 @@ const TABS = [
   { value: "", label: "Tout" },
   { value: "entreprises", label: "Entreprises" },
   { value: "candidats", label: "Candidats" },
+  { value: "revendications", label: "Revendications" },
 ] as const;
 
 export default async function AdminAuditPage({ searchParams }: PageProps<"/admin/journal">) {
