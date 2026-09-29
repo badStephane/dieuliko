@@ -118,6 +118,20 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const deleteAdminByEmail = `-- name: DeleteAdminByEmail :execrows
+DELETE FROM users WHERE email = $1 AND role = 'admin'
+`
+
+// Removes an administrator account (the admin command); candidates are deleted from the back-office instead.
+// Their audit entries stay, without an author.
+func (q *Queries) DeleteAdminByEmail(ctx context.Context, email string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAdminByEmail, email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteExpiredEmailTokens = `-- name: DeleteExpiredEmailTokens :execrows
 DELETE FROM email_tokens WHERE expires_at <= now()
 `

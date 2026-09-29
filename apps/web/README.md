@@ -34,3 +34,11 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## End-to-end tests (back-office)
+
+`pnpm test:e2e` runs the Playwright scenarios of `e2e/` against the app already running locally: `pnpm dev` here,
+`make run` in `apps/api`, and the docker compose services. A throwaway admin (`e2e-…@dieuliko.test`) is created with
+`go run ./cmd/admin create` before the run and deleted after; the listing a scenario creates is deleted by the scenario
+itself. Their back-office audit entries stay, without an author. First install the browser once:
+`npx playwright install chromium`. Set `E2E_BASE_URL` to test another address.

@@ -63,3 +63,8 @@ UPDATE users SET password_hash = $2 WHERE id = $1;
 SELECT id, email::text AS email, role, first_name, last_name, email_verified_at, created_at
 FROM users
 WHERE id = $1;
+
+-- Removes an administrator account (the admin command); candidates are deleted from the back-office instead.
+-- Their audit entries stay, without an author.
+-- name: DeleteAdminByEmail :execrows
+DELETE FROM users WHERE email = $1 AND role = 'admin';

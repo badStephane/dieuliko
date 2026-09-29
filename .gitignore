@@ -12,6 +12,10 @@ node_modules/
 
 # testing
 coverage/
+# Playwright: the throwaway admin's session, and run outputs
+apps/web/e2e/.auth/
+apps/web/test-results/
+apps/web/playwright-report/
 
 # next.js
 .next/

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -288,6 +289,21 @@ func (s *Service) CreateAdmin(ctx context.Context, input RegisterInput) (User, e
 		return nil
 	})
 	return user, err
+}
+
+// ErrAdminNotFound is returned when no administrator has the email.
+var ErrAdminNotFound = errors.New("admin not found")
+
+// DeleteAdmin removes an administrator account and its sessions; a candidate with that email is left alone.
+func (s *Service) DeleteAdmin(ctx context.Context, email string) error {
+	deleted, err := s.queries.DeleteAdminByEmail(ctx, strings.TrimSpace(email))
+	if err != nil {
+		return fmt.Errorf("delete admin: %w", err)
+	}
+	if deleted == 0 {
+		return ErrAdminNotFound
+	}
+	return nil
 }
 
 // Cleanup deletes expired sessions and email tokens.

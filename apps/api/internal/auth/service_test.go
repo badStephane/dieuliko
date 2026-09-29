@@ -454,6 +454,25 @@ func TestCreateAdmin(t *testing.T) {
 	}
 }
 
+func TestDeleteAdminLeavesCandidatesAlone(t *testing.T) {
+	service, _ := newTestService(t)
+	ctx := context.Background()
+	if _, err := service.CreateAdmin(ctx, RegisterInput{Email: "admin@dieuliko.sn", Password: "admin secret", FirstName: "Awa", LastName: "Diop"}); err != nil {
+		t.Fatalf("CreateAdmin: %v", err)
+	}
+	candidate, _ := register(t, service)
+
+	if err := service.DeleteAdmin(ctx, " admin@dieuliko.sn "); err != nil {
+		t.Fatalf("DeleteAdmin: %v", err)
+	}
+	if _, _, err := service.Login(ctx, "admin@dieuliko.sn", "admin secret"); err == nil {
+		t.Error("the deleted admin can still sign in")
+	}
+	if err := service.DeleteAdmin(ctx, candidate.Email); !errors.Is(err, ErrAdminNotFound) {
+		t.Errorf("deleting a candidate as an admin: %v", err)
+	}
+}
+
 // suspend marks the account suspended, as the back-office does.
 func suspend(t *testing.T, userID uuid.UUID) {
 	t.Helper()
