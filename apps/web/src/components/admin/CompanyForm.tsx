@@ -152,7 +152,7 @@ export function CompanyForm({ slug, company, logo, logoUrl = null, status, foote
           </h2>
           {/* A picture of the public card: not a link, not focusable. */}
           <div inert className="pointer-events-none">
-            <CompanyCard company={preview} />
+            <CompanyCard company={preview} sectorLabel={values.sector ? undefined : "Secteur à choisir"} />
           </div>
         </section>
 
