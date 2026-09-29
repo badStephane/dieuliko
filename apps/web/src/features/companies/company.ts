@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const COMPANY_SIZES = ["startup", "pme", "grande_entreprise"] as const;
+export const COMPANY_SIZES = ["startup", "pme", "grande_entreprise"] as const;
 
 const LIGATURES: Readonly<Record<string, string>> = { "œ": "oe", "æ": "ae" };
 

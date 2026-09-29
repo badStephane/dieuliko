@@ -16,7 +16,8 @@ export function CompanyStatus({ company }: { readonly company: AdminCompany }) {
         {company.hiddenAt ? <StatusBadge tone="danger">Masquée</StatusBadge> : <StatusBadge tone="success">Visible</StatusBadge>}
         {company.verified && <StatusBadge tone="success">Vérifiée</StatusBadge>}
       </div>
-      <dl className="grid gap-4 tab:grid-cols-2">
+      {/* One column: the card sits in the editor's narrow side panel. */}
+      <dl className="grid gap-3">
         <Fact term="Annuaire">{company.hiddenAt ? `Masquée depuis le ${formatDate(company.hiddenAt)}` : "Visible dans l’annuaire public"}</Fact>
         <Fact term="Vérification">{company.verified ? "Fiche vérifiée par l’équipe" : "Non vérifiée"}</Fact>
         <Fact term="Source">{company.source || "Inconnue"}</Fact>

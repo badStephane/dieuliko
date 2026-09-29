@@ -9,7 +9,7 @@ import { CompanyStatus } from "@/components/admin/CompanyStatus";
 import { LogoField } from "@/components/admin/LogoField";
 import { ADMIN_CARD, SECONDARY_ACTION, SECTION_TITLE } from "@/components/admin/styles";
 import { UnavailableNotice } from "@/components/admin/UnavailableNotice";
-import { ADMIN_COMPANIES_PATH, adminCompanyPath } from "@/features/admin/paths";
+import { ADMIN_COMPANIES_PATH, adminCompanyPath, adminLogoUrl } from "@/features/admin/paths";
 import { loadCompany } from "@/features/admin/server";
 import { requireAdmin } from "@/features/auth/server";
 import { companyHref } from "@/features/companies/search-params";
@@ -50,15 +50,21 @@ export default async function AdminCompanyPage({ params }: PageProps<"/admin/ent
   return (
     <>
       <AdminPageHeader title={company.name} subtitle={`${getSectorLabel(company.sector)} · ${company.city}`} back={BACK} actions={publicLink} />
-      <CompanyStatus company={company} />
-      <section aria-labelledby="company-logo" className={ADMIN_CARD}>
-        <h2 id="company-logo" className={SECTION_TITLE}>
-          Logo
-        </h2>
-        <LogoField slug={company.slug} name={company.name} sector={company.sector} logoVersion={company.logoVersion} />
-      </section>
-      <CompanyForm slug={company.slug} company={company} />
-      <CompanyDeletion slug={company.slug} name={company.name} applications={company.applications} letters={company.letters} />
+      <CompanyForm
+        slug={company.slug}
+        company={company}
+        logoUrl={company.logoVersion ? adminLogoUrl(company.slug, company.logoVersion) : null}
+        logo={
+          <section aria-labelledby="company-logo" className={ADMIN_CARD}>
+            <h2 id="company-logo" className={SECTION_TITLE}>
+              Logo
+            </h2>
+            <LogoField slug={company.slug} name={company.name} sector={company.sector} logoVersion={company.logoVersion} />
+          </section>
+        }
+        status={<CompanyStatus company={company} />}
+        footer={<CompanyDeletion slug={company.slug} name={company.name} applications={company.applications} letters={company.letters} />}
+      />
     </>
   );
 }

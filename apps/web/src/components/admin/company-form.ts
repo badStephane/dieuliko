@@ -1,4 +1,5 @@
 import type { AdminCompany, CompanyInput } from "@/features/admin/admin-api";
+import { COMPANY_SIZES, type Company, type CompanySize } from "@/features/companies/company";
 
 export const SOCIAL_NETWORKS = [
   { key: "linkedin", label: "LinkedIn" },
@@ -74,4 +75,32 @@ export function sameValues(a: CompanyInput, b: CompanyInput): boolean {
 export function missingFields(values: CompanyInput): Readonly<Record<string, string>> | null {
   const missing = REQUIRED_FIELDS.filter((field) => values[field].trim() === "");
   return missing.length ? Object.fromEntries(missing.map((field) => [field, REQUIRED_MESSAGE])) : null;
+}
+
+const PREVIEW_NAME = "Nom de l’entreprise";
+const PREVIEW_CITY = "Ville";
+
+/** How the directory would show the form's current values; blanks get placeholders so the card keeps its shape. */
+export function previewCompany(values: CompanyInput, context: { readonly slug: string; readonly logoUrl: string | null; readonly verified: boolean }): Company {
+  const clean = toInput(values);
+  const optional = (value: string) => (value === "" ? null : value);
+  return {
+    slug: context.slug,
+    name: clean.name || PREVIEW_NAME,
+    sector: clean.sector,
+    companyType: optional(clean.companyType),
+    description: optional(clean.description),
+    website: optional(clean.website),
+    email: optional(clean.email),
+    phone: optional(clean.phone),
+    city: clean.city || PREVIEW_CITY,
+    address: optional(clean.address),
+    size: (COMPANY_SIZES as readonly string[]).includes(clean.size) ? (clean.size as CompanySize) : null,
+    logoUrl: context.logoUrl,
+    socialLinks: clean.socialLinks,
+    acceptsSpontaneous: null,
+    verified: context.verified,
+    rating: null,
+    ratingCount: 0,
+  };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdminCompany } from "@/features/admin/admin-api";
 import { CANDIDATE_STATUSES, COMPANY_QUALITIES, COMPANY_SORTS, COMPANY_STATUSES, listQueryFrom } from "@/features/admin/list-query";
-import { missingFields, REQUIRED_MESSAGE, sameValues, toInput, valuesFrom } from "./company-form";
+import { missingFields, previewCompany, REQUIRED_MESSAGE, sameValues, toInput, valuesFrom } from "./company-form";
 import { listHref } from "./list-href";
 import { CANDIDATE_STATUS_OPTIONS, COMPANY_QUALITY_OPTIONS, COMPANY_SORT_OPTIONS, COMPANY_STATUS_OPTIONS } from "./status-options";
 import { candidateName, countLabel, percentOf } from "./text";
@@ -113,5 +113,19 @@ describe("listing filter options", () => {
 
     expect(qualities.sort()).toEqual(Object.keys(COMPANY_QUALITIES).sort());
     expect(sorts).toEqual(Object.keys(COMPANY_SORTS));
+  });
+});
+
+describe("previewCompany", () => {
+  it("shows the form's trimmed values as the directory would", () => {
+    const preview = previewCompany({ ...valuesFrom(company), name: "  Sonatel SA " }, { slug: "sonatel", logoUrl: "/logo.png", verified: true });
+
+    expect(preview).toMatchObject({ slug: "sonatel", name: "Sonatel SA", size: "grande_entreprise", email: null, logoUrl: "/logo.png", verified: true });
+  });
+
+  it("keeps the card's shape while the form is still empty", () => {
+    const preview = previewCompany({ ...valuesFrom(null), size: "inconnue" }, { slug: "", logoUrl: null, verified: false });
+
+    expect(preview).toMatchObject({ name: "Nom de l’entreprise", city: "Ville", size: null, companyType: null });
   });
 });
