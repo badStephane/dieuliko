@@ -32,10 +32,12 @@ vi.mock("next/cache", () => ({ revalidatePath: (path: string) => request.revalid
 import { SESSION_COOKIE } from "@/features/auth/server";
 import {
   deleteCandidateAction,
+  removeCompanyLogoAction,
   saveCompanyAction,
   setCandidateSuspendedAction,
   setCompanyHiddenAction,
   setCompanyVerifiedAction,
+  uploadCompanyLogoAction,
 } from "./actions";
 
 // --- Go API double: each "METHOD /path" answers its own status and data -----------------------
@@ -63,7 +65,7 @@ function stubApi(replies: Record<string, Reply>): void {
 const ADMIN = { id: "0b7c3e2a-5d4f-4a8b-9c1d-2e3f4a5b6c7d", email: "admin@dieuliko.sn", role: "admin", firstName: "Admin", lastName: "Dieuliko", emailVerified: true, createdAt: "2026-09-27T10:00:00Z" };
 const ME = { "GET /auth/me": { data: ADMIN } };
 const COMPANY = {
-  slug: "cabinet-ndiaye", name: "Cabinet Ndiaye", sector: "finance-comptabilite", city: "Dakar", companyType: "", description: "",
+  slug: "cabinet-ndiaye", logoVersion: null, name: "Cabinet Ndiaye", sector: "finance-comptabilite", city: "Dakar", companyType: "", description: "",
   website: "", email: "", phone: "", address: "", size: "", socialLinks: {}, verified: false, hiddenAt: null, curatedAt: null,
   source: "scraped", createdAt: "2026-09-28T10:00:00Z", updatedAt: "2026-09-28T10:00:00Z",
 };
@@ -143,6 +145,51 @@ describe("company actions", () => {
     expect((await saveCompanyAction("cabinet-ndiaye", { name: 42 })).status).toBe("error");
     expect((await setCompanyHiddenAction("../admin", true)).status).toBe("error");
     expect(calls.filter((call) => call !== "GET /auth/me")).toEqual([]);
+  });
+});
+
+function logoForm(content: BlobPart[] = ["png"], type = "image/png"): FormData {
+  const form = new FormData();
+  form.append("file", new File(content, "logo.png", { type }));
+  return form;
+}
+
+describe("logo actions", () => {
+  it("upload a logo and refresh the pages showing the listing", async () => {
+    stubApi({ ...ME, "PUT /admin/companies/cabinet-ndiaye/logo": { data: { ...COMPANY, logoVersion: "0b0b.png" } } });
+
+    expect(await uploadCompanyLogoAction("cabinet-ndiaye", logoForm())).toEqual({ status: "success", message: "Le logo est enregistré." });
+    expect(request.revalidated).toEqual(expect.arrayContaining(["/entreprises", "/entreprises/cabinet-ndiaye", "/admin/entreprises"]));
+  });
+
+  it("refuse a missing, oversized or non-image file without calling the API", async () => {
+    stubApi(ME);
+
+    expect(await uploadCompanyLogoAction("cabinet-ndiaye", new FormData())).toEqual({ status: "error", message: "Choisissez une image." });
+    expect(await uploadCompanyLogoAction("cabinet-ndiaye", logoForm([new Uint8Array(2 * 1024 * 1024 + 1)]))).toEqual({
+      status: "error",
+      message: "Le logo ne doit pas dépasser 2 Mo.",
+    });
+    expect(await uploadCompanyLogoAction("cabinet-ndiaye", logoForm(["<svg/>"], "image/svg+xml"))).toEqual({
+      status: "error",
+      message: "Le logo doit être une image PNG, JPEG ou WebP.",
+    });
+    expect((await uploadCompanyLogoAction("../x", logoForm())).status).toBe("error");
+    expect(calls.filter((call) => call !== "GET /auth/me")).toEqual([]);
+  });
+
+  it("show the API's reason when it refuses the image", async () => {
+    const fields = { file: "Cette image est illisible." };
+    stubApi({ ...ME, "PUT /admin/companies/cabinet-ndiaye/logo": { status: 422, error: { code: "validation_failed", message: "Certains champs sont invalides.", fields } } });
+
+    expect(await uploadCompanyLogoAction("cabinet-ndiaye", logoForm())).toEqual({ status: "error", message: fields.file });
+  });
+
+  it("remove a logo", async () => {
+    stubApi({ ...ME, "DELETE /admin/companies/cabinet-ndiaye/logo": { data: COMPANY } });
+
+    expect(await removeCompanyLogoAction("cabinet-ndiaye")).toEqual({ status: "success", message: "Le logo est retiré." });
+    expect(request.revalidated).toContain("/entreprises/cabinet-ndiaye");
   });
 });
 

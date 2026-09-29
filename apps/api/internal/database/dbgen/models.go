@@ -120,6 +120,7 @@ type Company struct {
 	UpdatedAt          time.Time
 	HiddenAt           *time.Time
 	CuratedAt          *time.Time
+	LogoKey            *string
 }
 
 type CoverLetter struct {

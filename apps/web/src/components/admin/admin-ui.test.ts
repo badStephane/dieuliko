@@ -8,6 +8,7 @@ import { candidateName, countLabel, percentOf } from "./text";
 
 const company: AdminCompany = {
   slug: "sonatel",
+  logoVersion: null,
   name: "Sonatel",
   sector: "telecoms-energie",
   city: "Dakar",

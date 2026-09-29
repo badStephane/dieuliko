@@ -34,7 +34,7 @@ func (q *Queries) CountCompanies(ctx context.Context, arg CountCompaniesParams) 
 
 const getCompanyBySlug = `-- name: GetCompanyBySlug :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address,
-       size, logo_url, social_links, accepts_spontaneous, verified, rating, rating_count
+       size, logo_url, logo_key, social_links, accepts_spontaneous, verified, rating, rating_count
 FROM companies
 WHERE slug = $1 AND hidden_at IS NULL
 `
@@ -52,6 +52,7 @@ type GetCompanyBySlugRow struct {
 	Address            *string
 	Size               *string
 	LogoUrl            *string
+	LogoKey            *string
 	SocialLinks        []byte
 	AcceptsSpontaneous *bool
 	Verified           bool
@@ -75,6 +76,7 @@ func (q *Queries) GetCompanyBySlug(ctx context.Context, slug string) (GetCompany
 		&i.Address,
 		&i.Size,
 		&i.LogoUrl,
+		&i.LogoKey,
 		&i.SocialLinks,
 		&i.AcceptsSpontaneous,
 		&i.Verified,
@@ -82,6 +84,17 @@ func (q *Queries) GetCompanyBySlug(ctx context.Context, slug string) (GetCompany
 		&i.RatingCount,
 	)
 	return i, err
+}
+
+const getCompanyLogoKey = `-- name: GetCompanyLogoKey :one
+SELECT logo_key FROM companies WHERE slug = $1 AND hidden_at IS NULL
+`
+
+func (q *Queries) GetCompanyLogoKey(ctx context.Context, slug string) (*string, error) {
+	row := q.db.QueryRow(ctx, getCompanyLogoKey, slug)
+	var logo_key *string
+	err := row.Scan(&logo_key)
+	return logo_key, err
 }
 
 const listCityCounts = `-- name: ListCityCounts :many
@@ -185,7 +198,7 @@ func (q *Queries) ListSectorCounts(ctx context.Context) ([]ListSectorCountsRow, 
 
 const searchCompanies = `-- name: SearchCompanies :many
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address,
-       size, logo_url, social_links, accepts_spontaneous, verified, rating, rating_count
+       size, logo_url, logo_key, social_links, accepts_spontaneous, verified, rating, rating_count
 FROM companies
 WHERE hidden_at IS NULL
   AND ($1::text IS NULL OR sector = $1)
@@ -217,6 +230,7 @@ type SearchCompaniesRow struct {
 	Address            *string
 	Size               *string
 	LogoUrl            *string
+	LogoKey            *string
 	SocialLinks        []byte
 	AcceptsSpontaneous *bool
 	Verified           bool
@@ -255,6 +269,7 @@ func (q *Queries) SearchCompanies(ctx context.Context, arg SearchCompaniesParams
 			&i.Address,
 			&i.Size,
 			&i.LogoUrl,
+			&i.LogoKey,
 			&i.SocialLinks,
 			&i.AcceptsSpontaneous,
 			&i.Verified,

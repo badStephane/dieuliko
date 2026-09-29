@@ -67,6 +67,27 @@ describe("chunkPage", () => {
 });
 
 describe("createApiCompanyRepository", () => {
+  it("serves an uploaded logo from this site, before any external logo", async () => {
+    const { fetchImpl } = fakeFetch(() =>
+      jsonResponse(200, { success: true, data: { ...apiCompany({ logoUrl: "https://ext.test/logo.png" }), logoVersion: "0b0b.png" } }),
+    );
+
+    const company = await createApiCompanyRepository(BASE_URL, { fetchImpl }).findBySlug("and-vision-agency");
+
+    expect(company?.logoUrl).toBe("/logos/and-vision-agency?v=0b0b.png");
+    expect(company).not.toHaveProperty("logoVersion");
+  });
+
+  it("keeps the external logo when none was uploaded", async () => {
+    const { fetchImpl } = fakeFetch(() =>
+      jsonResponse(200, { success: true, data: { ...apiCompany({ logoUrl: "https://ext.test/logo.png" }), logoVersion: null } }),
+    );
+
+    const company = await createApiCompanyRepository(BASE_URL, { fetchImpl }).findBySlug("and-vision-agency");
+
+    expect(company?.logoUrl).toBe("https://ext.test/logo.png");
+  });
+
   it("caches responses for the configured lifetime (daily by default)", async () => {
     const ok = () => jsonResponse(200, { success: true, data: [] });
     const byDefault = fakeFetch(ok);

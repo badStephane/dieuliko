@@ -131,7 +131,7 @@ func (q *Queries) GetAdminCandidate(ctx context.Context, id uuid.UUID) (GetAdmin
 
 const getAdminCompany = `-- name: GetAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       verified, hidden_at, curated_at, source, created_at, updated_at
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
 FROM companies
 WHERE slug = $1
 `
@@ -149,6 +149,7 @@ type GetAdminCompanyRow struct {
 	Address     *string
 	Size        *string
 	SocialLinks []byte
+	LogoKey     *string
 	Verified    bool
 	HiddenAt    *time.Time
 	CuratedAt   *time.Time
@@ -173,6 +174,7 @@ func (q *Queries) GetAdminCompany(ctx context.Context, slug string) (GetAdminCom
 		&i.Address,
 		&i.Size,
 		&i.SocialLinks,
+		&i.LogoKey,
 		&i.Verified,
 		&i.HiddenAt,
 		&i.CuratedAt,
@@ -376,7 +378,7 @@ func (q *Queries) ListTopCompaniesByApplications(ctx context.Context) ([]ListTop
 
 const lockAdminCompany = `-- name: LockAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       verified, hidden_at, curated_at, source, created_at, updated_at
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
 FROM companies
 WHERE slug = $1
 FOR UPDATE
@@ -395,6 +397,7 @@ type LockAdminCompanyRow struct {
 	Address     *string
 	Size        *string
 	SocialLinks []byte
+	LogoKey     *string
 	Verified    bool
 	HiddenAt    *time.Time
 	CuratedAt   *time.Time
@@ -420,6 +423,7 @@ func (q *Queries) LockAdminCompany(ctx context.Context, slug string) (LockAdminC
 		&i.Address,
 		&i.Size,
 		&i.SocialLinks,
+		&i.LogoKey,
 		&i.Verified,
 		&i.HiddenAt,
 		&i.CuratedAt,
@@ -449,6 +453,18 @@ func (q *Queries) LockCandidate(ctx context.Context, id uuid.UUID) (LockCandidat
 	var i LockCandidateRow
 	err := row.Scan(&i.Email, &i.FirstName, &i.SuspendedAt)
 	return i, err
+}
+
+const lockCompanyLogo = `-- name: LockCompanyLogo :one
+SELECT logo_key FROM companies WHERE slug = $1 FOR UPDATE
+`
+
+// Locks the listing while its logo is replaced; the previous key is returned so its file can be deleted.
+func (q *Queries) LockCompanyLogo(ctx context.Context, slug string) (*string, error) {
+	row := q.db.QueryRow(ctx, lockCompanyLogo, slug)
+	var logo_key *string
+	err := row.Scan(&logo_key)
+	return logo_key, err
 }
 
 const searchAdminCandidates = `-- name: SearchAdminCandidates :many
@@ -515,7 +531,7 @@ func (q *Queries) SearchAdminCandidates(ctx context.Context, arg SearchAdminCand
 }
 
 const searchAdminCompanies = `-- name: SearchAdminCompanies :many
-SELECT slug, name, sector, city, verified, hidden_at, curated_at, source, updated_at
+SELECT slug, name, sector, city, logo_key, verified, hidden_at, curated_at, source, updated_at
 FROM companies
 WHERE ($1::text IS NULL OR ($1::text = 'hidden') = (hidden_at IS NOT NULL))
   AND search_text LIKE ALL (
@@ -536,6 +552,7 @@ type SearchAdminCompaniesRow struct {
 	Name      string
 	Sector    string
 	City      string
+	LogoKey   *string
 	Verified  bool
 	HiddenAt  *time.Time
 	CuratedAt *time.Time
@@ -564,6 +581,7 @@ func (q *Queries) SearchAdminCompanies(ctx context.Context, arg SearchAdminCompa
 			&i.Name,
 			&i.Sector,
 			&i.City,
+			&i.LogoKey,
 			&i.Verified,
 			&i.HiddenAt,
 			&i.CuratedAt,
@@ -609,6 +627,21 @@ func (q *Queries) SetCompanyHidden(ctx context.Context, arg SetCompanyHiddenPara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const setCompanyLogo = `-- name: SetCompanyLogo :exec
+UPDATE companies SET logo_key = $1, curated_at = now() WHERE slug = $2
+`
+
+type SetCompanyLogoParams struct {
+	LogoKey *string
+	Slug    string
+}
+
+// A logo is an edit by the team: the listing becomes curated.
+func (q *Queries) SetCompanyLogo(ctx context.Context, arg SetCompanyLogoParams) error {
+	_, err := q.db.Exec(ctx, setCompanyLogo, arg.LogoKey, arg.Slug)
+	return err
 }
 
 const setCompanyVerified = `-- name: SetCompanyVerified :execrows

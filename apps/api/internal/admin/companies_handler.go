@@ -30,6 +30,9 @@ type CompanyManager interface {
 	Update(ctx context.Context, adminID uuid.UUID, slug string, input CompanyInput) (AdminCompany, error)
 	SetHidden(ctx context.Context, adminID uuid.UUID, slug string, hidden bool) (AdminCompany, error)
 	SetVerified(ctx context.Context, adminID uuid.UUID, slug string, verified bool) (AdminCompany, error)
+	SetLogo(ctx context.Context, adminID uuid.UUID, slug string, content []byte) (AdminCompany, error)
+	RemoveLogo(ctx context.Context, adminID uuid.UUID, slug string) (AdminCompany, error)
+	LogoKey(ctx context.Context, slug string) (*string, error)
 }
 
 func (h *Handler) registerCompanies(admin *gin.RouterGroup) {
@@ -40,6 +43,7 @@ func (h *Handler) registerCompanies(admin *gin.RouterGroup) {
 	companies.PUT("/:slug", h.updateCompany)
 	companies.PUT("/:slug/visibility", h.setCompanyVisibility)
 	companies.PUT("/:slug/verification", h.setCompanyVerification)
+	h.registerLogos(companies)
 }
 
 func (h *Handler) listCompanies(c *gin.Context) {

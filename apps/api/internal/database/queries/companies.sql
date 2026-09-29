@@ -3,7 +3,7 @@
 -- normalize_text) and words that must all appear in search_text, LIKE metacharacters already escaped.
 -- Hidden companies (back-office) are left out of every public query.
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address,
-       size, logo_url, social_links, accepts_spontaneous, verified, rating, rating_count
+       size, logo_url, logo_key, social_links, accepts_spontaneous, verified, rating, rating_count
 FROM companies
 WHERE hidden_at IS NULL
   AND (sqlc.narg(sector)::text IS NULL OR sector = sqlc.narg(sector))
@@ -24,9 +24,12 @@ WHERE hidden_at IS NULL
 
 -- name: GetCompanyBySlug :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address,
-       size, logo_url, social_links, accepts_spontaneous, verified, rating, rating_count
+       size, logo_url, logo_key, social_links, accepts_spontaneous, verified, rating, rating_count
 FROM companies
 WHERE slug = $1 AND hidden_at IS NULL;
+
+-- name: GetCompanyLogoKey :one
+SELECT logo_key FROM companies WHERE slug = $1 AND hidden_at IS NULL;
 
 -- name: ListCompanySlugs :many
 SELECT slug FROM companies WHERE hidden_at IS NULL ORDER BY slug;

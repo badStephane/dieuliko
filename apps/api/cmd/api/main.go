@@ -27,6 +27,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/database"
 	"github.com/badStephane/dieuliko/apps/api/internal/database/dbgen"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/logo"
 	"github.com/badStephane/dieuliko/apps/api/internal/mail"
 	"github.com/badStephane/dieuliko/apps/api/internal/server"
 	"github.com/badStephane/dieuliko/apps/api/internal/storage"
@@ -82,7 +83,7 @@ func run() error {
 	}
 	defer accounts.Wait() // let background emails finish after the server stops
 
-	cvStore, err := storage.NewS3Store(ctx, storage.S3Config(cfg.S3))
+	objectStore, err := storage.NewS3Store(ctx, storage.S3Config(cfg.S3))
 	if err != nil {
 		return err
 	}
@@ -111,13 +112,14 @@ func run() error {
 	limiters := append([]*httpx.RateLimiter{limiter, uploadLimiter, assistLimiter, applyLimiter, adminLimiter}, authLimiters.All()...)
 	jobs.Go(func() { evictPeriodically(ctx, limiters) })
 
-	cvs := candidate.NewCVService(pool, cvStore, logger)
+	cvs := candidate.NewCVService(pool, objectStore, logger)
 	letters := assistant.NewLetterService(pool, writer, profiles, companies)
 	handler, err := server.New(server.Deps{
 		Config:          cfg,
 		Logger:          logger,
 		DB:              pool,
 		Companies:       companies,
+		Logos:           logo.NewHandler(companies.LogoKey, objectStore),
 		RateLimiter:     limiter,
 		InternalLimiter: internalLimiter,
 		Accounts:        accounts,
@@ -128,12 +130,13 @@ func run() error {
 		Assistant:       assistant.NewService(writer, profiles),
 		Letters:         letters,
 		AssistLimiter:   assistLimiter,
-		Applications:    application.NewService(pool, cvStore, profiles, cvs, letters, logger),
+		Applications:    application.NewService(pool, objectStore, profiles, cvs, letters, logger),
 		ApplyLimiter:    applyLimiter,
 		Admin: admin.Services{
 			Stats:     admin.NewStatsService(pool),
-			Companies: admin.NewCompanyService(pool),
-			Accounts:  admin.NewAccountService(pool, cvStore, mailer, logger, strings.TrimRight(cfg.AppBaseURL, "/")+contactPath),
+			Companies: admin.NewCompanyService(pool, objectStore, logger),
+			Logos:     objectStore,
+			Accounts:  admin.NewAccountService(pool, objectStore, mailer, logger, strings.TrimRight(cfg.AppBaseURL, "/")+contactPath),
 		},
 		AdminLimiter: adminLimiter,
 	})

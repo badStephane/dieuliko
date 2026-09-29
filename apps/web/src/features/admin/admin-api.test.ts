@@ -27,6 +27,7 @@ const STATS = {
 
 const COMPANY = {
   slug: "cabinet-ndiaye",
+  logoVersion: null,
   name: "Cabinet Ndiaye",
   sector: "finance-comptabilite",
   city: "Dakar",

@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"testing"
 
@@ -36,7 +37,7 @@ func audit(t *testing.T, targetID string) ([]string, [][]string) {
 func newCompanyFixture(t *testing.T) (*CompanyService, uuid.UUID) {
 	t.Helper()
 	resetDB(t)
-	return NewCompanyService(testPool), newUser(t, "admin", "Admin")
+	return NewCompanyService(testPool, &memStore{objects: map[string][]byte{}}, slog.New(slog.DiscardHandler)), newUser(t, "admin", "Admin")
 }
 
 func TestCreateCompanyGeneratesAUniqueSlugAndIsAudited(t *testing.T) {

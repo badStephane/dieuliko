@@ -20,6 +20,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/logo"
 )
 
 const (
@@ -40,6 +41,8 @@ type Deps struct {
 	Logger    *slog.Logger
 	DB        Pinger
 	Companies company.Repository
+	// Logos serves the logos of the public directory (not mounted when nil).
+	Logos *logo.Handler
 	// RateLimiter budgets public clients (per IP); InternalLimiter budgets token-bearing server calls.
 	RateLimiter     *httpx.RateLimiter
 	InternalLimiter *httpx.RateLimiter
@@ -96,6 +99,9 @@ func New(deps Deps) (*gin.Engine, error) {
 	isInternal := httpx.HasInternalToken(deps.Config.InternalToken)
 	v1 := router.Group("/v1", httpx.RateLimit(deps.RateLimiter, deps.InternalLimiter, isInternal))
 	company.NewHandler(deps.Companies).Register(v1)
+	if deps.Logos != nil {
+		deps.Logos.Register(v1)
+	}
 	auth.NewHandler(deps.Accounts, deps.AuthLimiters, httpx.EndUserIP(isInternal)).Register(v1)
 	candidate.NewHandler(deps.Profiles, deps.CVs, deps.UploadLimiter).Register(v1, auth.RequireUser(deps.Accounts))
 	assistant.NewHandler(deps.Assistant, deps.Letters, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { errorState } from "@/features/auth/form-state";
 import { redirectOnLostSession, requestContext, requireAdmin } from "@/features/auth/server";
+import { LOGO_MISSING, logoFileError } from "@/features/companies/logo";
 import { companyHref } from "@/features/companies/search-params";
 import { COMPANIES_PATH } from "@/lib/navigation";
 import { companyInputSchema } from "./admin-api";
@@ -86,6 +87,36 @@ export async function setCompanyHiddenAction(slug: unknown, hidden: unknown): Pr
 
 export async function setCompanyVerifiedAction(slug: unknown, verified: unknown): Promise<AdminResult> {
   return toggleCompany(slug, verified, "verified");
+}
+
+/** Replaces a listing's logo with the "file" field of `formData`. */
+export async function uploadCompanyLogoAction(slug: unknown, formData: FormData): Promise<AdminResult> {
+  const parsed = slugSchema.safeParse(slug);
+  await requireAdmin(parsed.success ? adminCompanyPath(parsed.data) : ADMIN_COMPANIES_PATH);
+  if (!parsed.success) return { status: "error", message: INVALID_REQUEST };
+  const file = formData.get("file");
+  const problem = logoFileError(file);
+  if (problem || !(file instanceof File)) return { status: "error", message: problem ?? LOGO_MISSING };
+  try {
+    await getAdminApi().uploadLogo(parsed.data, file, await requestContext());
+  } catch (error: unknown) {
+    return failure(error, adminCompanyPath(parsed.data), false);
+  }
+  revalidateCompany(parsed.data);
+  return { status: "success", message: "Le logo est enregistré." };
+}
+
+export async function removeCompanyLogoAction(slug: unknown): Promise<AdminResult> {
+  const parsed = slugSchema.safeParse(slug);
+  await requireAdmin(parsed.success ? adminCompanyPath(parsed.data) : ADMIN_COMPANIES_PATH);
+  if (!parsed.success) return { status: "error", message: INVALID_REQUEST };
+  try {
+    await getAdminApi().removeLogo(parsed.data, await requestContext());
+  } catch (error: unknown) {
+    return failure(error, adminCompanyPath(parsed.data), false);
+  }
+  revalidateCompany(parsed.data);
+  return { status: "success", message: "Le logo est retiré." };
 }
 
 export async function setCandidateSuspendedAction(id: unknown, suspended: unknown): Promise<AdminResult> {

@@ -34,6 +34,8 @@ export const companyInputSchema = z.object({
 
 export const adminCompanySchema = companyInputSchema.extend({
   slug: z.string(),
+  /** Identifies the uploaded logo (null: none); it changes with every upload. */
+  logoVersion: z.string().nullable(),
   verified: z.boolean(),
   hiddenAt: z.string().nullable(),
   curatedAt: z.string().nullable(),
@@ -47,6 +49,7 @@ const companySummarySchema = adminCompanySchema.pick({
   name: true,
   sector: true,
   city: true,
+  logoVersion: true,
   verified: true,
   hiddenAt: true,
   curatedAt: true,
@@ -116,6 +119,11 @@ export interface AdminApi {
   updateCompany(slug: string, input: Partial<CompanyInput>, context: RequestOptions): Promise<AdminCompany>;
   setCompanyHidden(slug: string, hidden: boolean, context: RequestOptions): Promise<AdminCompany>;
   setCompanyVerified(slug: string, verified: boolean, context: RequestOptions): Promise<AdminCompany>;
+  /** Replaces the listing's logo with `file` (PNG, JPEG or WebP, 2 MB at most). */
+  uploadLogo(slug: string, file: File, context: RequestOptions): Promise<AdminCompany>;
+  removeLogo(slug: string, context: RequestOptions): Promise<AdminCompany>;
+  /** The logo file to stream, null when the listing has none. */
+  downloadLogo(slug: string, context: RequestOptions): Promise<Response | null>;
   listCandidates(query: ListQuery, context: RequestOptions): Promise<Page<CandidateSummary>>;
   /** Null when no candidate has this id. */
   getCandidate(id: string, context: RequestOptions): Promise<CandidateDetail | null>;
@@ -148,6 +156,17 @@ export function createAdminApi(client: ApiClient): AdminApi {
     },
     async setCompanyVerified(slug, verified, context) {
       return parseApiData(adminCompanySchema, await client.put(`${companyPath(slug)}/verification`, { verified }, context), "company verification");
+    },
+    async uploadLogo(slug, file, context) {
+      const form = new FormData();
+      form.append("file", file);
+      return parseApiData(adminCompanySchema, await client.put(`${companyPath(slug)}/logo`, form, context), "company logo");
+    },
+    async removeLogo(slug, context) {
+      return parseApiData(adminCompanySchema, await client.delete(`${companyPath(slug)}/logo`, context), "company logo removal");
+    },
+    downloadLogo(slug, context) {
+      return client.download(`${companyPath(slug)}/logo`, context);
     },
     async listCandidates(query, context) {
       const response = requireResponse(await client.get("/admin/candidates", { ...context, params: listParams(query) }), "/admin/candidates");

@@ -12,3 +12,8 @@ export function adminCompanyPath(slug: string): string {
 export function adminCandidatePath(id: string): string {
   return `${ADMIN_CANDIDATES_PATH}/${encodeURIComponent(id)}`;
 }
+
+/** The back-office copy of a listing's logo (hidden listings included, never cached). */
+export function adminLogoUrl(slug: string, version: string): string {
+  return `${adminCompanyPath(slug)}/logo?v=${encodeURIComponent(version)}`;
+}

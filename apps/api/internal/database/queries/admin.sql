@@ -31,7 +31,7 @@ LIMIT 10;
 -- Back-office directory search: hidden listings included, filtered by status ('visible' / 'hidden'; NULL = all)
 -- and by words that must all appear in search_text (LIKE metacharacters already escaped). Keep both filters identical.
 -- name: SearchAdminCompanies :many
-SELECT slug, name, sector, city, verified, hidden_at, curated_at, source, updated_at
+SELECT slug, name, sector, city, logo_key, verified, hidden_at, curated_at, source, updated_at
 FROM companies
 WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') = (hidden_at IS NOT NULL))
   AND search_text LIKE ALL (
@@ -48,14 +48,14 @@ WHERE (sqlc.narg(status)::text IS NULL OR (sqlc.narg(status)::text = 'hidden') =
 
 -- name: GetAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       verified, hidden_at, curated_at, source, created_at, updated_at
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
 FROM companies
 WHERE slug = $1;
 
 -- Locks the listing while an edit compares it with the new values.
 -- name: LockAdminCompany :one
 SELECT slug, name, sector, company_type, description, website, email, phone, city, address, size, social_links,
-       verified, hidden_at, curated_at, source, created_at, updated_at
+       logo_key, verified, hidden_at, curated_at, source, created_at, updated_at
 FROM companies
 WHERE slug = $1
 FOR UPDATE;
@@ -85,6 +85,14 @@ WHERE slug = sqlc.arg(slug);
 
 -- name: SetCompanyVerified :execrows
 UPDATE companies SET verified = sqlc.arg(verified)::bool WHERE slug = sqlc.arg(slug);
+
+-- Locks the listing while its logo is replaced; the previous key is returned so its file can be deleted.
+-- name: LockCompanyLogo :one
+SELECT logo_key FROM companies WHERE slug = $1 FOR UPDATE;
+
+-- A logo is an edit by the team: the listing becomes curated.
+-- name: SetCompanyLogo :exec
+UPDATE companies SET logo_key = sqlc.narg(logo_key), curated_at = now() WHERE slug = sqlc.arg(slug);
 
 -- name: InsertAdminAudit :exec
 INSERT INTO admin_audit (admin_id, action, target_type, target_id, changed_fields)

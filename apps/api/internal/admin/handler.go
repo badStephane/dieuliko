@@ -12,6 +12,7 @@ import (
 
 	"github.com/badStephane/dieuliko/apps/api/internal/auth"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/storage"
 )
 
 // Changes per admin: 30 per minute on average, bursts of 10 (reads fall under the global limiter).
@@ -30,6 +31,8 @@ type Services struct {
 	Stats     StatsReader
 	Companies CompanyManager
 	Accounts  AccountManager
+	// Logos holds the company logos (the store of CompanyService).
+	Logos storage.Store
 }
 
 // NewLimiter budgets back-office changes per admin; idle buckets are kept for idleTTL.

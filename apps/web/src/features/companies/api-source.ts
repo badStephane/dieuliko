@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createApiClient, parseApiData, requireResponse, type ApiClient, type ApiClientOptions } from "@/lib/api-client";
 import type { Company } from "./company";
 import type { CityCount, SectorCount } from "./filters";
+import { companyLogoUrl } from "./logo";
 import { assertPage, type CompanyPage, type CompanyRepository, type PageRequest } from "./repository";
 
 /** Largest `limit` accepted by `GET /v1/companies`; bigger windows are fetched in chunks. */
@@ -25,12 +26,19 @@ const apiCompanySchema = z.object({
   address: z.string().nullable(),
   size: z.enum(["startup", "pme", "grande_entreprise"]).nullable(),
   logoUrl: z.string().nullable(),
+  /** Set when the logo was uploaded in the back-office; it wins over `logoUrl` (an external image). */
+  logoVersion: z.string().nullable().optional(),
   socialLinks: z.record(z.string(), z.string()),
   acceptsSpontaneous: z.boolean().nullable(),
   verified: z.boolean(),
   rating: z.number().min(0).max(5).nullable(),
   ratingCount: z.number().int().min(0),
-}) satisfies z.ZodType<Company>;
+});
+
+/** A listing of the API as the site shows it: an uploaded logo is served by this site. */
+const companySchema = apiCompanySchema.transform(
+  ({ logoVersion, ...company }): Company => ({ ...company, logoUrl: logoVersion ? companyLogoUrl(company.slug, logoVersion) : company.logoUrl }),
+);
 
 const pageMetaSchema = z.object({ total: z.number().int().min(0) });
 const sectorCountSchema = z.object({ slug: z.string(), label: z.string(), count: z.number().int().min(0) });
@@ -53,7 +61,7 @@ async function fetchPage(client: ApiClient, params: Record<string, string>, page
     "/companies",
   );
   return {
-    items: parseApiData(z.array(apiCompanySchema), response, "companies"),
+    items: parseApiData(z.array(companySchema), response, "companies"),
     total: parseApiData(pageMetaSchema, response, "page meta", response.meta).total,
   };
 }
@@ -76,7 +84,7 @@ export function createApiCompanyRepository(baseUrl: string, options: ApiClientOp
 
     async findBySlug(slug) {
       const response = await client.get(`/companies/${encodeURIComponent(slug)}`);
-      return response ? parseApiData(apiCompanySchema, response, "company") : null;
+      return response ? parseApiData(companySchema, response, "company") : null;
     },
 
     async sectorCounts(): Promise<readonly SectorCount[]> {

@@ -5,7 +5,8 @@ import { ExternalLink } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { CompanyForm } from "@/components/admin/CompanyForm";
 import { CompanyStatus } from "@/components/admin/CompanyStatus";
-import { SECONDARY_ACTION } from "@/components/admin/styles";
+import { LogoField } from "@/components/admin/LogoField";
+import { ADMIN_CARD, SECONDARY_ACTION, SECTION_TITLE } from "@/components/admin/styles";
 import { UnavailableNotice } from "@/components/admin/UnavailableNotice";
 import { ADMIN_COMPANIES_PATH, adminCompanyPath } from "@/features/admin/paths";
 import { loadCompany } from "@/features/admin/server";
@@ -49,6 +50,12 @@ export default async function AdminCompanyPage({ params }: PageProps<"/admin/ent
     <>
       <AdminPageHeader title={company.name} subtitle={`${getSectorLabel(company.sector)} · ${company.city}`} back={BACK} actions={publicLink} />
       <CompanyStatus company={company} />
+      <section aria-labelledby="company-logo" className={ADMIN_CARD}>
+        <h2 id="company-logo" className={SECTION_TITLE}>
+          Logo
+        </h2>
+        <LogoField slug={company.slug} name={company.name} sector={company.sector} logoVersion={company.logoVersion} />
+      </section>
       <CompanyForm slug={company.slug} company={company} />
     </>
   );

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/badStephane/dieuliko/apps/api/internal/database/dbgen"
+	"github.com/badStephane/dieuliko/apps/api/internal/logo"
 )
 
 // PostgresRepository is the Repository backed by the sqlc queries.
@@ -100,6 +101,21 @@ func (r *PostgresRepository) CityCounts(ctx context.Context) ([]CityCount, error
 	return counts, nil
 }
 
+// LogoKey implements logo.KeyReader: the logo key of a visible listing.
+func (r *PostgresRepository) LogoKey(ctx context.Context, slug string) (*string, error) {
+	if !IsValidSlug(slug) {
+		return nil, logo.ErrNoListing
+	}
+	key, err := r.queries.GetCompanyLogoKey(ctx, slug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, logo.ErrNoListing
+	}
+	if err != nil {
+		return nil, fmt.Errorf("company logo key: %w", err)
+	}
+	return key, nil
+}
+
 func fromRow(row dbgen.GetCompanyBySlugRow) (Company, error) {
 	socialLinks := map[string]string{}
 	if err := json.Unmarshal(row.SocialLinks, &socialLinks); err != nil {
@@ -118,6 +134,7 @@ func fromRow(row dbgen.GetCompanyBySlugRow) (Company, error) {
 		Address:            row.Address,
 		Size:               row.Size,
 		LogoURL:            row.LogoUrl,
+		LogoVersion:        logo.VersionOf(row.LogoKey),
 		SocialLinks:        socialLinks,
 		AcceptsSpontaneous: row.AcceptsSpontaneous,
 		Verified:           row.Verified,

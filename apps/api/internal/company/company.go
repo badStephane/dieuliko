@@ -12,18 +12,21 @@ var ErrNotFound = errors.New("company not found")
 
 // Company is a public directory listing. JSON field names match the web front's `Company` type.
 type Company struct {
-	Slug        string            `json:"slug"`
-	Name        string            `json:"name"`
-	Sector      string            `json:"sector"`
-	CompanyType *string           `json:"companyType"`
-	Description *string           `json:"description"`
-	Website     *string           `json:"website"`
-	Email       *string           `json:"email"`
-	Phone       *string           `json:"phone"`
-	City        string            `json:"city"`
-	Address     *string           `json:"address"`
-	Size        *string           `json:"size"`
-	LogoURL     *string           `json:"logoUrl"`
+	Slug        string  `json:"slug"`
+	Name        string  `json:"name"`
+	Sector      string  `json:"sector"`
+	CompanyType *string `json:"companyType"`
+	Description *string `json:"description"`
+	Website     *string `json:"website"`
+	Email       *string `json:"email"`
+	Phone       *string `json:"phone"`
+	City        string  `json:"city"`
+	Address     *string `json:"address"`
+	Size        *string `json:"size"`
+	LogoURL     *string `json:"logoUrl"`
+	// LogoVersion identifies a logo uploaded in the back-office (served by GET /companies/:slug/logo?v=…); it wins
+	// over LogoURL.
+	LogoVersion *string           `json:"logoVersion"`
 	SocialLinks map[string]string `json:"socialLinks"`
 	// AcceptsSpontaneous is nil while the company has not said yet (unclaimed listing).
 	AcceptsSpontaneous *bool    `json:"acceptsSpontaneous"`

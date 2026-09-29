@@ -98,6 +98,8 @@ type fakeCompanies struct {
 	gotFilters CompanyFilters
 	gotPage    [2]int
 	gotFlag    *bool
+	gotContent []byte
+	logoKey    *string
 }
 
 var testCompany = AdminCompany{CompanyInput: CompanyInput{Name: "Cabinet Ndiaye", Sector: "finance-comptabilite", City: "Dakar"}, Slug: "cabinet-ndiaye"}
@@ -130,6 +132,21 @@ func (f *fakeCompanies) SetHidden(_ context.Context, adminID uuid.UUID, slug str
 func (f *fakeCompanies) SetVerified(_ context.Context, adminID uuid.UUID, slug string, verified bool) (AdminCompany, error) {
 	f.gotAdmin, f.gotSlug, f.gotFlag = adminID, slug, &verified
 	return testCompany, f.err
+}
+
+func (f *fakeCompanies) SetLogo(_ context.Context, adminID uuid.UUID, slug string, content []byte) (AdminCompany, error) {
+	f.gotAdmin, f.gotSlug, f.gotContent = adminID, slug, content
+	return testCompany, f.err
+}
+
+func (f *fakeCompanies) RemoveLogo(_ context.Context, adminID uuid.UUID, slug string) (AdminCompany, error) {
+	f.gotAdmin, f.gotSlug = adminID, slug
+	return testCompany, f.err
+}
+
+func (f *fakeCompanies) LogoKey(_ context.Context, slug string) (*string, error) {
+	f.gotSlug = slug
+	return f.logoKey, f.err
 }
 
 func TestListCompaniesReadsFiltersAndPage(t *testing.T) {

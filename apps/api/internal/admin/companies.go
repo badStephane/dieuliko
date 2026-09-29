@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"strconv"
 	"time"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/database/dbgen"
+	"github.com/badStephane/dieuliko/apps/api/internal/logo"
+	"github.com/badStephane/dieuliko/apps/api/internal/storage"
 )
 
 // Listing status filters of the back-office search.
@@ -42,26 +45,28 @@ type DB interface {
 // AdminCompany is a listing as the back-office sees it; empty strings stand for missing optional values.
 type AdminCompany struct {
 	CompanyInput
-	Slug      string     `json:"slug"`
-	Verified  bool       `json:"verified"`
-	HiddenAt  *time.Time `json:"hiddenAt"`
-	CuratedAt *time.Time `json:"curatedAt"`
-	Source    string     `json:"source"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	Slug        string     `json:"slug"`
+	LogoVersion *string    `json:"logoVersion"`
+	Verified    bool       `json:"verified"`
+	HiddenAt    *time.Time `json:"hiddenAt"`
+	CuratedAt   *time.Time `json:"curatedAt"`
+	Source      string     `json:"source"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 // CompanySummary is one line of the back-office company list.
 type CompanySummary struct {
-	Slug      string     `json:"slug"`
-	Name      string     `json:"name"`
-	Sector    string     `json:"sector"`
-	City      string     `json:"city"`
-	Verified  bool       `json:"verified"`
-	HiddenAt  *time.Time `json:"hiddenAt"`
-	CuratedAt *time.Time `json:"curatedAt"`
-	Source    string     `json:"source"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	Slug        string     `json:"slug"`
+	Name        string     `json:"name"`
+	Sector      string     `json:"sector"`
+	City        string     `json:"city"`
+	LogoVersion *string    `json:"logoVersion"`
+	Verified    bool       `json:"verified"`
+	HiddenAt    *time.Time `json:"hiddenAt"`
+	CuratedAt   *time.Time `json:"curatedAt"`
+	Source      string     `json:"source"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }
 
 // CompanyFilters narrows the back-office search; empty fields do not filter.
@@ -76,14 +81,16 @@ type CompanyPage struct {
 	Total int              `json:"total"`
 }
 
-// CompanyService moderates the directory; every change is recorded in admin_audit.
+// CompanyService moderates the directory; every change is recorded in admin_audit. Logos go to store.
 type CompanyService struct {
-	db DB
+	db     DB
+	store  storage.Store
+	logger *slog.Logger
 }
 
 // NewCompanyService builds the service.
-func NewCompanyService(db DB) *CompanyService {
-	return &CompanyService{db: db}
+func NewCompanyService(db DB, store storage.Store, logger *slog.Logger) *CompanyService {
+	return &CompanyService{db: db, store: store, logger: logger}
 }
 
 // Search lists listings, hidden ones included, by name.
@@ -104,7 +111,10 @@ func (s *CompanyService) Search(ctx context.Context, filters CompanyFilters, off
 	}
 	items := make([]CompanySummary, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, CompanySummary(row))
+		items = append(items, CompanySummary{
+			Slug: row.Slug, Name: row.Name, Sector: row.Sector, City: row.City, LogoVersion: logo.VersionOf(row.LogoKey),
+			Verified: row.Verified, HiddenAt: row.HiddenAt, CuratedAt: row.CuratedAt, Source: row.Source, UpdatedAt: row.UpdatedAt,
+		})
 	}
 	return CompanyPage{Items: items, Total: int(total)}, nil
 }
@@ -273,7 +283,8 @@ func fromAdminRow(row dbgen.GetAdminCompanyRow) (AdminCompany, error) {
 			Website: deref(row.Website), Email: deref(row.Email), Phone: deref(row.Phone), Address: deref(row.Address), Size: deref(row.Size),
 			SocialLinks: links,
 		},
-		Slug: row.Slug, Verified: row.Verified, HiddenAt: row.HiddenAt, CuratedAt: row.CuratedAt, Source: row.Source,
+		Slug: row.Slug, LogoVersion: logo.VersionOf(row.LogoKey), Verified: row.Verified, HiddenAt: row.HiddenAt, CuratedAt: row.CuratedAt,
+		Source:    row.Source,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}, nil
 }
