@@ -3,16 +3,17 @@
 import { CircleUserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH, LOGIN_PATH } from "@/features/auth/redirects";
+import { homePathOf, LOGIN_PATH } from "@/features/auth/redirects";
 
 type AccountState =
   | { readonly status: "loading" }
   | { readonly status: "guest" }
-  | { readonly status: "user"; readonly firstName: string; readonly isAdmin: boolean };
+  | { readonly status: "user"; readonly firstName: string; readonly home: string };
 
 interface SessionUser {
   readonly firstName: string;
-  readonly isAdmin: boolean;
+  /** The space of the user's role. */
+  readonly home: string;
 }
 
 function readUser(body: unknown): SessionUser | null {
@@ -20,7 +21,7 @@ function readUser(body: unknown): SessionUser | null {
   const { user } = body;
   if (typeof user !== "object" || user === null || !("firstName" in user)) return null;
   if (typeof user.firstName !== "string") return null;
-  return { firstName: user.firstName, isAdmin: "role" in user && user.role === "admin" };
+  return { firstName: user.firstName, home: homePathOf("role" in user && typeof user.role === "string" ? user.role : "") };
 }
 
 /**
@@ -54,11 +55,11 @@ interface AccountLinkProps {
   readonly className?: string;
 }
 
-/** "Connexion" for visitors, the candidate's first name once logged in. Hidden while loading. */
+/** "Connexion" for visitors, a link to their space once logged in. Hidden while loading. */
 export function AccountLink({ pathname, className = "" }: AccountLinkProps) {
   const account = useAccount(pathname);
   const isUser = account.status === "user";
-  const href = isUser ? (account.isAdmin ? ADMIN_HOME_PATH : CANDIDATE_HOME_PATH) : LOGIN_PATH;
+  const href = isUser ? account.home : LOGIN_PATH;
   const isActive = pathname === href;
 
   return (

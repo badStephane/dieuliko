@@ -12,26 +12,40 @@ import {
   verifyEmailAction,
 } from "@/features/auth/actions";
 import { IDLE } from "@/features/auth/form-state";
-import { FORGOT_PASSWORD_PATH, NEXT_PARAM } from "@/features/auth/redirects";
+import { ACCOUNT_TYPE_FIELD, FORGOT_PASSWORD_PATH, NEXT_PARAM } from "@/features/auth/redirects";
 import { AUTH_LINK_CLASSES } from "./AuthPanel";
 import { FormMessage, PasswordField, SubmitButton, TextField } from "./FormParts";
 
 const NEW_PASSWORD_HINT = "8 caractères minimum. Une phrase facile à retenir fonctionne très bien.";
 const FORM_CLASSES = "flex flex-col gap-6";
 
-export function SignUpForm({ next }: { readonly next: string }) {
+interface SignUpFormProps {
+  readonly next: string;
+  /** Opens a company account instead of a candidate one. */
+  readonly isCompany?: boolean;
+}
+
+export function SignUpForm({ next, isCompany = false }: SignUpFormProps) {
   const [state, action] = useActionState(signUpAction, IDLE);
   return (
     <form action={action} noValidate className={FORM_CLASSES}>
       <FormMessage state={state} />
       <input type="hidden" name={NEXT_PARAM} value={next} />
+      {isCompany && <input type="hidden" name={ACCOUNT_TYPE_FIELD} value="company" />}
       <div className="grid gap-6 tab:grid-cols-2">
         <TextField name="firstName" label="Prénom" state={state} autoComplete="given-name" />
         <TextField name="lastName" label="Nom" state={state} autoComplete="family-name" />
       </div>
-      <TextField name="email" label="Adresse email" type="email" state={state} autoComplete="email" placeholder="nom@exemple.sn" />
+      <TextField
+        name="email"
+        label={isCompany ? "Adresse email professionnelle" : "Adresse email"}
+        type="email"
+        state={state}
+        autoComplete="email"
+        placeholder={isCompany ? "nom@votre-entreprise.sn" : "nom@exemple.sn"}
+      />
       <PasswordField state={state} autoComplete="new-password" hint={NEW_PASSWORD_HINT} />
-      <SubmitButton pendingLabel="Création du compte…">Créer mon compte</SubmitButton>
+      <SubmitButton pendingLabel="Création du compte…">{isCompany ? "Créer mon compte entreprise" : "Créer mon compte"}</SubmitButton>
     </form>
   );
 }

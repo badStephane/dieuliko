@@ -11,38 +11,66 @@ interface TextFieldProps {
   readonly name: string;
   readonly label: string;
   readonly state: FormState;
-  readonly type?: "text" | "email";
+  readonly type?: "text" | "email" | "tel";
   readonly autoComplete?: string;
   readonly placeholder?: string;
   /** Initial value when the form has not been submitted yet. */
   readonly initialValue?: string;
+  /** Lets the form be sent with the field empty. */
+  readonly isOptional?: boolean;
 }
 
 function fieldId(name: string): string {
   return `auth-${name}`;
 }
 
-function a11yProps(name: string, error: string | undefined) {
+function a11yProps(name: string, error: string | undefined, isOptional = false) {
   return {
     id: fieldId(name),
     name,
-    required: true,
+    required: !isOptional,
     "aria-invalid": Boolean(error),
     "aria-describedby": error ? `${fieldId(name)}-error` : undefined,
   };
 }
 
-export function TextField({ name, label, state, type = "text", autoComplete, placeholder, initialValue = "" }: TextFieldProps) {
+export function TextField({ name, label, state, type = "text", autoComplete, placeholder, initialValue = "", isOptional = false }: TextFieldProps) {
   const error = state.fields?.[name];
   return (
     <FormField id={fieldId(name)} label={label} error={error}>
       <input
-        {...a11yProps(name, error)}
+        {...a11yProps(name, error, isOptional)}
         type={type}
         autoComplete={autoComplete}
         placeholder={placeholder}
         defaultValue={state.values?.[name] ?? initialValue}
         className={`${FIELD_BOX_CLASSES} text-ink-deep ${fieldBorderClass(Boolean(error))}`}
+      />
+    </FormField>
+  );
+}
+
+interface TextAreaFieldProps {
+  readonly name: string;
+  readonly label: string;
+  readonly state: FormState;
+  readonly maxLength: number;
+  readonly placeholder?: string;
+  readonly isOptional?: boolean;
+}
+
+/** Multi-line text, such as a message to the team. */
+export function TextAreaField({ name, label, state, maxLength, placeholder, isOptional = false }: TextAreaFieldProps) {
+  const error = state.fields?.[name];
+  return (
+    <FormField id={fieldId(name)} label={label} error={error}>
+      <textarea
+        {...a11yProps(name, error, isOptional)}
+        rows={5}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        defaultValue={state.values?.[name] ?? ""}
+        className={`${FIELD_BOX_CLASSES} min-h-32 resize-y text-ink-deep ${fieldBorderClass(Boolean(error))}`}
       />
     </FormField>
   );

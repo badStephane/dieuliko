@@ -1,8 +1,9 @@
+import type { User } from "@/features/auth/auth-api";
 import { getCurrentUser } from "@/features/auth/server";
 
 /** What the (client) site header needs to know about the visitor; never cached. */
 interface SessionSummary {
-  readonly user: { readonly firstName: string; readonly role: "candidate" | "admin" } | null;
+  readonly user: { readonly firstName: string; readonly role: User["role"] } | null;
 }
 
 /**

@@ -150,6 +150,16 @@ describe("signUpAction", () => {
     expect(JSON.parse(String(apiCalls[0]?.init.body))).toEqual(submitted);
   });
 
+  it("creates a company account and sends it to the company space", async () => {
+    ok({ ...AUTH_RESULT, user: { ...USER, role: "company" } });
+    const submitted = { firstName: "Awa", lastName: "Diop", email: "rh@sonatel.sn", password: "correct horse" };
+
+    const destination = await redirectOf(signUpAction(IDLE, form({ ...submitted, accountType: "company", next: "//evil.example" })));
+
+    expect(destination).toBe("/espace-entreprise");
+    expect(JSON.parse(String(apiCalls[0]?.init.body))).toEqual({ ...submitted, accountType: "company" });
+  });
+
   it("returns field errors and the submitted values, never the password", async () => {
     fail(422, "validation_failed", "Certains champs sont invalides.", { email: "Invalide." });
 

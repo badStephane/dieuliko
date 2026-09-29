@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { errorState, formText, type FormState } from "./form-state";
 import type { User } from "./auth-api";
-import { afterLoginPath, LOGIN_PATH, NEXT_PARAM, RESET_DONE_PARAM, safeNextPath } from "./redirects";
+import { ACCOUNT_TYPE_FIELD, afterLoginPath, LOGIN_PATH, NEXT_PARAM, RESET_DONE_PARAM } from "./redirects";
 import { clearSessionCookie, getAuthApi, requestContext, setSessionCookie } from "./server";
 
 const PASSWORD_RESET_SENT =
@@ -17,16 +17,19 @@ export async function signUpAction(_previous: FormState, formData: FormData): Pr
     lastName: formText(formData, "lastName"),
     email: formText(formData, "email"),
   };
+  const accountType = formText(formData, ACCOUNT_TYPE_FIELD) === "company" ? { accountType: "company" as const } : {};
+  let role: User["role"];
   try {
-    const { session } = await getAuthApi().signUp(
-      { ...values, password: formText(formData, "password") },
+    const { user, session } = await getAuthApi().signUp(
+      { ...values, password: formText(formData, "password"), ...accountType },
       await requestContext(),
     );
     await setSessionCookie(session.token, session.expiresAt);
+    role = user.role;
   } catch (error: unknown) {
     return errorState(error, values);
   }
-  redirect(safeNextPath(formText(formData, NEXT_PARAM)));
+  redirect(afterLoginPath(role, formText(formData, NEXT_PARAM)));
 }
 
 export async function logInAction(_previous: FormState, formData: FormData): Promise<FormState> {

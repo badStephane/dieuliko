@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Company } from "@/features/companies/company";
 import { buildCompanySummary, SIZE_LABELS, telHref } from "@/features/companies/profile";
+import { companySignupHref } from "@/features/company-space/paths";
 import { signupHref } from "@/features/signup/company-param";
 import { CompanyAvatar } from "./CompanyAvatar";
 
@@ -51,6 +52,12 @@ export function CompanyProfileSidebar({ company }: { readonly company: Company }
         Postuler spontanément
         <ArrowRight aria-hidden className="size-5" />
       </Link>
+      <p className="mt-4 text-center text-[15px] leading-[22px] text-muted">
+        C’est votre entreprise ?{" "}
+        <Link href={companySignupHref(company.slug)} className="font-semibold text-ink underline-offset-4 hover:underline">
+          Gérer cette fiche
+        </Link>
+      </p>
     </div>
   );
 }

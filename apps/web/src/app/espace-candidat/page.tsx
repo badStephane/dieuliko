@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { CloudOff, MailWarning } from "lucide-react";
+import { CloudOff } from "lucide-react";
 import { LogOutButton, ResendVerificationForm } from "@/components/auth/AuthForms";
+import { VerificationNotice } from "@/components/auth/VerificationNotice";
 import { ApplicationsCard } from "@/components/candidate/ApplicationsCard";
 import { CvCard } from "@/components/candidate/CvCard";
 import { JourneyCard } from "@/components/candidate/JourneyCard";
@@ -10,7 +12,7 @@ import { LettersCard } from "@/components/candidate/LettersCard";
 import { ProfileCard } from "@/components/candidate/ProfileCard";
 import { Container } from "@/components/ui/Container";
 import type { User } from "@/features/auth/auth-api";
-import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH, hasCandidateSpace } from "@/features/auth/redirects";
+import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH, COMPANY_HOME_PATH, hasCandidateSpace } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
 import { candidateJourney, EMAIL_NOTICE_ID } from "@/features/candidate/journey";
 import { loadCandidateSpace } from "@/features/candidate/server";
@@ -19,21 +21,6 @@ export const metadata: Metadata = {
   title: "Mon espace candidat",
   robots: { index: false, follow: false },
 };
-
-function VerificationNotice({ user }: { readonly user: User }) {
-  return (
-    <div id={EMAIL_NOTICE_ID} className="flex scroll-mt-28 flex-col gap-4 rounded-[10px] bg-accent-soft/40 p-6 tab:flex-row tab:items-start">
-      <MailWarning aria-hidden className="size-7 shrink-0 text-primary" strokeWidth={1.5} />
-      <div className="flex flex-col gap-2">
-        <p className="text-[18px] leading-[27px] font-semibold">Confirmez votre adresse email</p>
-        <p className="text-[17px] leading-[26px] text-ink-deep">
-          Nous avons envoyé un lien à <strong>{user.email}</strong>. Pensez à vérifier vos courriers indésirables.
-        </p>
-        <ResendVerificationForm />
-      </div>
-    </div>
-  );
-}
 
 function Notice({ children }: { readonly children: ReactNode }) {
   return (
@@ -68,7 +55,7 @@ async function CandidateTools({ user }: { readonly user: User }) {
   if (!space) {
     return (
       <>
-        {!user.emailVerified && <VerificationNotice user={user} />}
+        {!user.emailVerified && <VerificationNotice user={user} id={EMAIL_NOTICE_ID} />}
         <Notice>Votre profil et votre CV sont momentanément indisponibles. Réessayez dans quelques instants.</Notice>
       </>
     );
@@ -100,6 +87,7 @@ async function CandidateTools({ user }: { readonly user: User }) {
 
 export default async function CandidateSpacePage() {
   const user = await requireUser(CANDIDATE_HOME_PATH);
+  if (user.role === "company") redirect(COMPANY_HOME_PATH);
 
   return (
     // A compact welcome rather than the public pages' hero, so the journey shows on arrival.
@@ -125,7 +113,7 @@ export default async function CandidateSpacePage() {
             <CandidateTools user={user} />
           ) : (
             <>
-              {!user.emailVerified && <VerificationNotice user={user} />}
+              {!user.emailVerified && <VerificationNotice user={user} id={EMAIL_NOTICE_ID} />}
               <AccountCard user={user} />
               <Notice>Le profil et le CV sont réservés aux comptes candidats.</Notice>
             </>

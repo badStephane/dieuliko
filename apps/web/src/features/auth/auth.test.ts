@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError, type ApiClient, type ApiResponse } from "@/lib/api-client";
 import { createAuthApi } from "./auth-api";
 import { errorState, formText, IDLE } from "./form-state";
-import { ADMIN_HOME_PATH, afterLoginPath, CANDIDATE_HOME_PATH, hasCandidateSpace, loginHref, safeNextPath } from "./redirects";
+import { ADMIN_HOME_PATH, afterLoginPath, CANDIDATE_HOME_PATH, COMPANY_HOME_PATH, hasCandidateSpace, homePathOf, loginHref, safeNextPath } from "./redirects";
 
 const USER = {
   id: "2db42e29-e9c9-4a16-9a58-74856f9aecf1",
@@ -44,6 +44,12 @@ describe("createAuthApi", () => {
     await createAuthApi(client).logIn("awa@example.sn", "pw", {});
 
     expect(post).toHaveBeenCalledWith("/auth/login", { email: "awa@example.sn", password: "pw" }, {});
+  });
+
+  it("accepts company accounts", async () => {
+    const { client } = fakeClient({ post: async () => response({ user: { ...USER, role: "company" }, session: SESSION }) });
+
+    await expect(createAuthApi(client).logIn("rh@sonatel.sn", "pw", {})).resolves.toMatchObject({ user: { role: "company" } });
   });
 
   it("rejects malformed auth results", async () => {
@@ -160,6 +166,17 @@ describe("afterLoginPath", () => {
   it("sends each role to its own space when no page was asked for", () => {
     expect(afterLoginPath("candidate", null)).toBe(CANDIDATE_HOME_PATH);
     expect(afterLoginPath("admin", "")).toBe(ADMIN_HOME_PATH);
+    expect(afterLoginPath("company", null)).toBe(COMPANY_HOME_PATH);
+  });
+
+  it("finds the space of each role, the candidate one for an unknown role", () => {
+    expect(homePathOf("company")).toBe(COMPANY_HOME_PATH);
+    expect(homePathOf("admin")).toBe(ADMIN_HOME_PATH);
+    expect(homePathOf("toString")).toBe(CANDIDATE_HOME_PATH);
+  });
+
+  it("gives company accounts no candidate space", () => {
+    expect(hasCandidateSpace("company")).toBe(false);
   });
 
   it("honours a same-site page, and falls back to the role's space for an unsafe one", () => {

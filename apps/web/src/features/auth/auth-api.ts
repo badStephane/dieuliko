@@ -4,7 +4,7 @@ import { ApiError, parseApiData, type ApiClient, type RequestOptions } from "@/l
 export const userSchema = z.object({
   id: z.string().uuid(),
   email: z.string(),
-  role: z.enum(["candidate", "admin"]),
+  role: z.enum(["candidate", "admin", "company"]),
   firstName: z.string(),
   lastName: z.string(),
   emailVerified: z.boolean(),
@@ -24,6 +24,8 @@ export interface SignUpInput {
   readonly password: string;
   readonly firstName: string;
   readonly lastName: string;
+  /** "company" opens a company account; left out, the account is a candidate's. */
+  readonly accountType?: "company";
 }
 
 /** Calls to `/v1/auth`. `context` carries the visitor IP (rate limiting) and, when logged in, the session. */
