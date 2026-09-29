@@ -21,6 +21,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/listing"
 	"github.com/badStephane/dieuliko/apps/api/internal/logo"
 )
 
@@ -61,8 +62,12 @@ type Deps struct {
 	// ApplyLimiter budgets application sends and withdrawals per candidate.
 	ApplyLimiter *httpx.RateLimiter
 	Admin        admin.Services
-	// Claims are company accounts' requests to manage a listing.
-	Claims claim.Claims
+	// Claims are company accounts' requests to manage a listing; Members tells which listing an account manages.
+	Claims  claim.Claims
+	Members claim.Members
+	// Listings lets a company account edit the listing it manages; ListingLimiter budgets its changes.
+	Listings       listing.Managed
+	ListingLimiter *httpx.RateLimiter
 	// AdminLimiter budgets back-office changes per admin.
 	AdminLimiter *httpx.RateLimiter
 }
@@ -111,6 +116,7 @@ func New(deps Deps) (*gin.Engine, error) {
 	application.NewHandler(deps.Applications, deps.ApplyLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidateSpace)
 	admin.NewHandler(deps.Admin, deps.AdminLimiter).Register(v1, auth.RequireUser(deps.Accounts))
 	claim.NewHandler(deps.Claims).Register(v1, auth.RequireUser(deps.Accounts))
+	listing.NewHandler(deps.Listings, deps.ListingLimiter).Register(v1, auth.RequireUser(deps.Accounts), deps.Members)
 
 	return router, nil
 }

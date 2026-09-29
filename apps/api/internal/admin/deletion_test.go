@@ -77,6 +77,23 @@ func TestDeleteCompanyIsRefusedWithAWrongNameOrApplications(t *testing.T) {
 	}
 }
 
+func TestDeleteCompanyIsRefusedWhileACompanyManagesIt(t *testing.T) {
+	resetDB(t)
+	service := NewCompanyService(testPool, &memStore{objects: map[string][]byte{}}, slog.New(slog.DiscardHandler))
+	adminID := newUser(t, "admin", "Admin")
+	ctx := context.Background()
+	listing, err := service.Create(ctx, adminID, validCompany())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	exec(t, `INSERT INTO company_claims (user_id, company_id, job_title, status, reviewed_at)
+		SELECT $1, id, 'DRH', 'approved', now() FROM companies WHERE slug = $2`, newUser(t, "company", "Awa"), listing.Slug)
+
+	if err := service.Delete(ctx, adminID, listing.Slug, listing.Name); !errors.Is(err, ErrCompanyIsClaimed) {
+		t.Errorf("claimed listing: err = %v, want ErrCompanyIsClaimed", err)
+	}
+}
+
 func TestAuditListsActionsNewestFirstWithLiveLabels(t *testing.T) {
 	resetDB(t)
 	companies := NewCompanyService(testPool, &memStore{objects: map[string][]byte{}}, slog.New(slog.DiscardHandler))

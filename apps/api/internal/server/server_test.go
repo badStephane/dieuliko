@@ -21,6 +21,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/company"
 	"github.com/badStephane/dieuliko/apps/api/internal/config"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/listing"
 )
 
 const internalToken = "0123456789abcdef0123456789abcdef"
@@ -87,10 +88,11 @@ func deps(db Pinger, burst int) Deps {
 		Accounts:        noAccounts{},
 		AuthLimiters:    auth.NewLimiters(time.Minute),
 		// Candidate routes are only checked to be mounted behind the session: the services are never reached.
-		UploadLimiter: candidate.NewUploadLimiter(time.Minute),
-		AssistLimiter: assistant.NewLimiter(time.Minute),
-		ApplyLimiter:  application.NewLimiter(time.Minute),
-		AdminLimiter:  admin.NewLimiter(time.Minute),
+		UploadLimiter:  candidate.NewUploadLimiter(time.Minute),
+		AssistLimiter:  assistant.NewLimiter(time.Minute),
+		ApplyLimiter:   application.NewLimiter(time.Minute),
+		AdminLimiter:   admin.NewLimiter(time.Minute),
+		ListingLimiter: listing.NewLimiter(time.Minute),
 	}
 }
 
@@ -173,6 +175,7 @@ func TestMountsCandidateRoutesUnderV1BehindASession(t *testing.T) {
 		{http.MethodPost, "/v1/me/applications"},
 		{http.MethodGet, "/v1/admin/stats"},
 		{http.MethodGet, "/v1/company/claim"},
+		{http.MethodGet, "/v1/company/listing"},
 	} {
 		path := route.path
 		rec := do(handler, route.method, path, nil)

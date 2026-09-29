@@ -28,6 +28,7 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/database"
 	"github.com/badStephane/dieuliko/apps/api/internal/database/dbgen"
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
+	"github.com/badStephane/dieuliko/apps/api/internal/listing"
 	"github.com/badStephane/dieuliko/apps/api/internal/logo"
 	"github.com/badStephane/dieuliko/apps/api/internal/mail"
 	"github.com/badStephane/dieuliko/apps/api/internal/server"
@@ -117,6 +118,7 @@ func run() error {
 
 	cvs := candidate.NewCVService(pool, objectStore, logger)
 	letters := assistant.NewLetterService(pool, writer, profiles, companies)
+	claims := claim.NewService(pool)
 	handler, err := server.New(server.Deps{
 		Config:          cfg,
 		Logger:          logger,
@@ -135,7 +137,10 @@ func run() error {
 		AssistLimiter:   assistLimiter,
 		Applications:    application.NewService(pool, objectStore, profiles, cvs, letters, logger),
 		ApplyLimiter:    applyLimiter,
-		Claims:          claim.NewService(pool),
+		Claims:          claims,
+		Members:         claims,
+		Listings:        listing.NewManager(pool, listing.NewLogos(pool, objectStore, logger)),
+		ListingLimiter:  listing.NewLimiter(server.RateLimiterIdleTTL),
 		Admin: admin.Services{
 			Stats:     admin.NewStatsService(pool),
 			Companies: admin.NewCompanyService(pool, objectStore, logger),

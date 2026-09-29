@@ -17,12 +17,18 @@ import (
 	"github.com/badStephane/dieuliko/apps/api/internal/httpx"
 )
 
-// CodeHasApplications is the error code of a deletion refused because candidates applied to the listing.
-const CodeHasApplications = "company_has_applications"
+// Error codes of a refused deletion: candidates applied to the listing, or a company manages it.
+const (
+	CodeHasApplications = "company_has_applications"
+	CodeIsClaimed       = "company_is_claimed"
+)
 
 // ErrCompanyHasApplications is returned when a listing that received applications is deleted: they are the
 // candidates' history, so the listing can only be hidden.
 var ErrCompanyHasApplications = errors.New("company has applications")
+
+// ErrCompanyIsClaimed is returned when a listing a company manages is deleted: its access must be revoked first.
+var ErrCompanyIsClaimed = errors.New("company is claimed")
 
 // Delete erases a listing once its name is typed again (case and surrounding spaces ignored). The letters candidates
 // wrote for it go with it; a listing that received applications cannot be deleted. Its logo file is removed after.
@@ -43,6 +49,13 @@ func (s *CompanyService) Delete(ctx context.Context, adminID uuid.UUID, slug, co
 		if row.Applications > 0 {
 			return ErrCompanyHasApplications
 		}
+		managed, err := q.CompanyManagedBySlug(ctx, slug)
+		if err != nil {
+			return fmt.Errorf("admin delete company: check manager: %w", err)
+		}
+		if managed {
+			return ErrCompanyIsClaimed
+		}
 		if logoKey, err = q.DeleteAdminCompany(ctx, slug); err != nil {
 			return fmt.Errorf("admin delete company: %w", err)
 		}
@@ -52,7 +65,7 @@ func (s *CompanyService) Delete(ctx context.Context, adminID uuid.UUID, slug, co
 		return err
 	}
 	if logoKey != nil {
-		s.deleteLogo(ctx, *logoKey)
+		s.logos.DeleteFile(ctx, *logoKey)
 	}
 	return nil
 }
@@ -71,6 +84,10 @@ func (h *Handler) deleteCompany(c *gin.Context) {
 	if errors.Is(err, ErrCompanyHasApplications) {
 		httpx.Fail(c, http.StatusConflict, CodeHasApplications,
 			"Des candidats ont postulé auprès de cette entreprise : masquez la fiche plutôt que de la supprimer.")
+		return
+	}
+	if errors.Is(err, ErrCompanyIsClaimed) {
+		httpx.Fail(c, http.StatusConflict, CodeIsClaimed, "Une entreprise gère cette fiche : retirez-lui d’abord l’accès depuis Revendications.")
 		return
 	}
 	if err != nil {

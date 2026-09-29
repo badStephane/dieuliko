@@ -313,6 +313,8 @@ ON CONFLICT (slug) DO UPDATE SET
     rating_count = EXCLUDED.rating_count,
     notes = EXCLUDED.notes
 WHERE NOT companies.verified AND companies.curated_at IS NULL
+  -- A listing its company manages is the company's, even unverified.
+  AND NOT EXISTS (SELECT 1 FROM company_claims cl WHERE cl.company_id = companies.id AND cl.status = 'approved')
 `
 
 type UpsertScrapedCompanyParams struct {

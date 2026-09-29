@@ -217,3 +217,29 @@ func approve(t *testing.T, userID, companyID uuid.UUID) {
 		t.Fatalf("approve: %v", err)
 	}
 }
+
+func TestMembershipIsTheApprovedClaimOnly(t *testing.T) {
+	requireDB(t)
+	slug, companyID := seedCompany(t, false)
+	manager := newRequester(t)
+	approve(t, manager.ID, companyID)
+	pending := newRequester(t)
+	if _, err := NewService(testPool).Request(context.Background(), pending, validRequest(mustSeedSlug(t))); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	service := NewService(testPool)
+
+	got, err := service.Membership(context.Background(), manager.ID)
+	if err != nil || got != (Membership{CompanyID: companyID, Slug: slug}) {
+		t.Errorf("manager membership = %+v, %v", got, err)
+	}
+	if _, err := service.Membership(context.Background(), pending.ID); !errors.Is(err, ErrNotMember) {
+		t.Errorf("pending requester: err = %v, want ErrNotMember", err)
+	}
+}
+
+func mustSeedSlug(t *testing.T) string {
+	t.Helper()
+	slug, _ := seedCompany(t, false)
+	return slug
+}

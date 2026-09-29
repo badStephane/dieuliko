@@ -42,6 +42,9 @@ const USER_FACING_CODES: ReadonlySet<string> = new Set([
   "claim_not_pending",
   "claim_not_approved",
   "listing_managed",
+  "company_is_claimed",
+  "stale_listing",
+  "no_company",
 ]);
 
 /** Turns a failed call into form feedback; unexpected failures get a generic message. */

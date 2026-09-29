@@ -123,6 +123,15 @@ type Company struct {
 	LogoKey            *string
 }
 
+type CompanyActivity struct {
+	ID            int64
+	CompanyID     uuid.UUID
+	UserID        pgtype.UUID
+	Action        string
+	ChangedFields []string
+	CreatedAt     time.Time
+}
+
 type CompanyClaim struct {
 	ID             uuid.UUID
 	UserID         uuid.UUID

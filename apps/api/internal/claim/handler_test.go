@@ -171,3 +171,50 @@ func TestClaimErrorsMapToStatusAndCode(t *testing.T) {
 		})
 	}
 }
+
+// fakeMembers says which account manages which listing.
+type fakeMembers struct {
+	membership Membership
+	err        error
+}
+
+func (f fakeMembers) Membership(context.Context, uuid.UUID) (Membership, error) {
+	return f.membership, f.err
+}
+
+func TestRequireMemberLetsOnlyTheManagerThrough(t *testing.T) {
+	sonatel := Membership{CompanyID: uuid.MustParse("00000000-0000-0000-0000-0000000000d1"), Slug: "sonatel"}
+	tests := []struct {
+		name    string
+		members fakeMembers
+		status  int
+		code    string
+	}{
+		{"manager", fakeMembers{membership: sonatel}, http.StatusOK, ""},
+		{"no approved claim", fakeMembers{err: ErrNotMember}, http.StatusForbidden, CodeNoCompany},
+		{"lookup failure", fakeMembers{err: errors.New("database down")}, http.StatusInternalServerError, httpx.CodeInternal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			var seen Membership
+			router.GET("/v1/company/listing", auth.RequireUser(sessions{}), RequireCompanyAccount, RequireMember(tt.members), func(c *gin.Context) {
+				seen = CurrentMembership(c)
+				c.Status(http.StatusOK)
+			})
+			req := httptest.NewRequest(http.MethodGet, "/v1/company/listing", nil)
+			req.Header.Set("Authorization", "Bearer "+companyToken)
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.status || (tt.code != "" && !strings.Contains(rec.Body.String(), tt.code)) {
+				t.Errorf("status %d, body %s", rec.Code, rec.Body)
+			}
+			if tt.status == http.StatusOK && seen != sonatel {
+				t.Errorf("handler saw %+v", seen)
+			}
+		})
+	}
+}

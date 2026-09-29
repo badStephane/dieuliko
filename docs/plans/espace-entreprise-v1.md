@@ -17,8 +17,8 @@ Plan validé le 29/09/2026. Les cases cochées suivent l'avancement.
 ## Modèle de données
 
 - `00008_company_accounts.sql` : `users.role` accepte `company` ; table `company_claims` (`user_id`, `company_id`, `status` pending/approved/rejected/cancelled/revoked, `job_title`, `phone`, `message`, `decision_reason`, `reviewed_by`, `reviewed_at`, horodatages) ; index uniques `(user_id) WHERE status IN ('pending','approved')` et `(company_id) WHERE status = 'approved'` ; audit admin `claim.approve|reject|revoke`, `target_type = 'claim'`. L'approbation pose `verified` et `curated_at`.
-- `00009_application_responses.sql` : `applications.seen_at`, `decision` (`shortlisted`/`declined`), `decided_at`, `decision_notified_at` (un seul email de décision), avec contraintes de cohérence ; `WithdrawApplication` remet ces colonnes à NULL.
-- `00010_company_activity.sql` : journal des modifications faites par l'entreprise (noms de champs seulement).
+- `00010_application_responses.sql` : `applications.seen_at`, `decision` (`shortlisted`/`declined`), `decided_at`, `decision_notified_at` (un seul email de décision), avec contraintes de cohérence ; `WithdrawApplication` remet ces colonnes à NULL.
+- `00009_company_activity.sql` : journal des modifications faites par l'entreprise (noms de champs seulement).
 
 ## API
 
@@ -30,15 +30,15 @@ Plan validé le 29/09/2026. Les cases cochées suivent l'avancement.
 
 ## Étapes
 
-1. [ ] (Reporté à l'étape 7, faute de besoin avant) Refactor sans changement de comportement : `internal/audit`, `internal/listing`, `mail/notice.go` ; `CompanyForm` et `LogoField` reçoivent leurs actions en props ; `lib/private-download.ts`.
+1. [x] Refactor, fait à l'étape 7 selon le besoin : `internal/listing` (validation, champs modifiés, logos) et `logo.ReadUpload`. Pas besoin de `internal/audit` ni de `mail/notice.go` : la revue des demandes vit dans `admin`. Côté web, `CompanyForm` et `LogoField` recevront leurs actions en props à l'étape 8.
 2. [x] Migration 00008 et rôle `company` à l'inscription (le web accepte le rôle dans le même commit).
 3. [x] API des demandes côté entreprise.
 4. [x] API admin des demandes (approbation, rejet auto des concurrentes, refus, révocation, emails).
 5. [x] Web : inscription entreprise, demande, états de la demande. L'e2e complet (`e2e/company-claim.spec.ts`) ne tourne qu'avec `E2E_MAILPIT=1`, l'API envoyant alors ses emails à Mailpit : en dev, ils partent sinon par Brevo.
 6. [x] Web admin : file des demandes (`/admin/revendications`), revue, bandeau du tableau de bord, journal.
-7. [ ] `RequireMember` et API d'édition de fiche (migration 00010, importeur, suppression refusée si revendiquée).
+7. [x] `RequireMember` et API d'édition de fiche (migration 00009 `company_activity`, importeur, suppression refusée si revendiquée).
 8. [ ] Web `/espace-entreprise/fiche`.
-9. [ ] Migration 00009 et boîte de réception côté API (tests d'isolation d'abord).
+9. [ ] Migration 00010 et boîte de réception côté API (tests d'isolation d'abord).
 10. [ ] Candidat : badges de statut et emails de décision ; email à l'entreprise pour chaque candidature.
 11. [ ] Web boîte de réception (liste, détail, vue, décision, CV) et e2e complet.
 12. [ ] (v1.1) Gestion des comptes entreprise dans l'admin, nettoyage des comptes e2e.

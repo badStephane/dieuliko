@@ -361,6 +361,38 @@ func TestHiddenCompaniesLeaveThePublicDirectory(t *testing.T) {
 	}
 }
 
+func TestImportNeverOverwritesACompanyManagedByItsCompany(t *testing.T) {
+	repo := seed(t, record("geree", map[string]any{"name": "Nom scrapé"}))
+	ctx := context.Background()
+	// Even unverified and never curated by the team, a listing its company manages is its company's.
+	_, err := testPool.Exec(ctx, `
+		WITH manager AS (
+			INSERT INTO users (email, password_hash, role, first_name, last_name)
+			VALUES ('rh@geree.sn', '$argon2id$v=19$m=65536,t=1,p=4$c2FsdA$aGFzaA', 'company', 'Awa', 'Diop') RETURNING id
+		)
+		INSERT INTO company_claims (user_id, company_id, job_title, status, reviewed_at)
+		SELECT manager.id, c.id, 'DRH', 'approved', now() FROM manager, companies c WHERE c.slug = 'geree'`)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if _, err := testPool.Exec(ctx, "UPDATE companies SET name = 'Nom de l’entreprise', verified = false, curated_at = NULL WHERE slug = 'geree'"); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	params, err := ParseScraped(encode(t, record("geree", map[string]any{"name": "Nom scrapé"})))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if err := ImportScraped(ctx, testPool, params); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+
+	company, err := repo.FindBySlug(ctx, "geree")
+	if err != nil || company.Name != "Nom de l’entreprise" {
+		t.Fatalf("company = %+v, err %v; want the company's own edit kept", company, err)
+	}
+}
+
 func TestImportNeverOverwritesCompaniesEditedInTheBackOffice(t *testing.T) {
 	repo := seed(t, record("corrigee", map[string]any{"name": "Nom scrapé"}))
 	ctx := context.Background()
