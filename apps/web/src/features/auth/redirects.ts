@@ -23,6 +23,11 @@ export function safeNextPath(raw: string | null | undefined): string {
   return raw;
 }
 
+/** Candidates have a candidate space, and so do admins, who may apply like anyone. */
+export function hasCandidateSpace(role: string): boolean {
+  return role === "candidate" || role === "admin";
+}
+
 /** The page asked for (when same-site), else the space of the user's role. */
 export function afterLoginPath(role: "candidate" | "admin", raw: string | null | undefined): string {
   const home = role === "admin" ? ADMIN_HOME_PATH : CANDIDATE_HOME_PATH;

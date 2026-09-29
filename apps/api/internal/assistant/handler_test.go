@@ -86,7 +86,7 @@ func newRouter(rewriter Rewriter) *gin.Engine {
 func newRouterWith(rewriter Rewriter, letters Letters) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	NewHandler(rewriter, letters, NewLimiter(time.Minute)).Register(router.Group("/v1"), auth.RequireUser(sessions{}), candidate.RequireCandidate)
+	NewHandler(rewriter, letters, NewLimiter(time.Minute)).Register(router.Group("/v1"), auth.RequireUser(sessions{}), candidate.RequireCandidateSpace)
 	return router
 }
 

@@ -66,6 +66,17 @@ test.describe("back-office", () => {
     });
   });
 
+  test("opens the admin's own candidate space from the sidebar", async ({ page }) => {
+    await page.goto("/admin");
+    await page.getByRole("link", { name: "Mon espace candidat" }).click();
+
+    await expect(page).toHaveURL(/\/espace-candidat$/);
+    await expect(page.getByRole("heading", { name: "Votre parcours" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mon profil" })).toBeVisible();
+    await page.getByRole("link", { name: "Retour au back-office" }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+  });
+
   test("filters candidates by journey step", async ({ page }) => {
     await page.goto("/admin/candidats");
     await page.getByRole("navigation", { name: "Étape du parcours" }).getByRole("link", { name: "Sans CV" }).click();

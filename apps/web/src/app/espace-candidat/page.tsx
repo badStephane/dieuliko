@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { CloudOff, MailWarning } from "lucide-react";
 import { LogOutButton, ResendVerificationForm } from "@/components/auth/AuthForms";
@@ -9,8 +10,7 @@ import { LettersCard } from "@/components/candidate/LettersCard";
 import { ProfileCard } from "@/components/candidate/ProfileCard";
 import { Container } from "@/components/ui/Container";
 import type { User } from "@/features/auth/auth-api";
-import { redirect } from "next/navigation";
-import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
+import { ADMIN_HOME_PATH, CANDIDATE_HOME_PATH, hasCandidateSpace } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
 import { candidateJourney, EMAIL_NOTICE_ID } from "@/features/candidate/journey";
 import { loadCandidateSpace } from "@/features/candidate/server";
@@ -100,7 +100,6 @@ async function CandidateTools({ user }: { readonly user: User }) {
 
 export default async function CandidateSpacePage() {
   const user = await requireUser(CANDIDATE_HOME_PATH);
-  if (user.role === "admin") redirect(ADMIN_HOME_PATH);
 
   return (
     // A compact welcome rather than the public pages' hero, so the journey shows on arrival.
@@ -109,9 +108,20 @@ export default async function CandidateSpacePage() {
         <div className="mx-auto flex max-w-[1200px] flex-col gap-6">
           <div className="flex flex-col gap-1">
             <h1 className="text-[32px] leading-[1.2] font-bold break-words tab:text-[40px]">Bonjour {user.firstName}</h1>
-            <p className="text-[17px] leading-[26px] text-ink-deep">Bienvenue dans votre espace candidat Dieuliko.</p>
+            <p className="text-[17px] leading-[26px] text-ink-deep">
+              {user.role === "admin" ? (
+                <>
+                  Votre espace candidat personnel : vos candidatures y sont les vôtres, pas celles de l’équipe.{" "}
+                  <Link href={ADMIN_HOME_PATH} className="font-semibold text-primary underline-offset-4 hover:underline">
+                    Retour au back-office
+                  </Link>
+                </>
+              ) : (
+                "Bienvenue dans votre espace candidat Dieuliko."
+              )}
+            </p>
           </div>
-          {user.role === "candidate" ? (
+          {hasCandidateSpace(user.role) ? (
             <CandidateTools user={user} />
           ) : (
             <>

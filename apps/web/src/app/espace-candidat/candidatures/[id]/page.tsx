@@ -6,7 +6,7 @@ import { applicationStatusLabel } from "@/components/candidate/ApplicationsCard"
 import { WithdrawButton } from "@/components/candidate/WithdrawButton";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { Container } from "@/components/ui/Container";
-import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
+import { CANDIDATE_HOME_PATH, hasCandidateSpace } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
 import type { ApplicationDetail } from "@/features/candidate/candidate-api";
 import { applicationPath } from "@/features/candidate/paths";
@@ -58,7 +58,7 @@ function SentContent({ id, companyName, snapshot }: { readonly id: string; reado
 export default async function ApplicationPage({ params }: PageProps<"/espace-candidat/candidatures/[id]">) {
   const { id } = await params;
   const user = await requireUser(applicationPath(id));
-  const page = user.role === "candidate" ? await loadApplicationPage(id) : null;
+  const page = hasCandidateSpace(user.role) ? await loadApplicationPage(id) : null;
   if (page && !page.application) notFound();
   const application = page?.application ?? null;
 
@@ -80,7 +80,7 @@ export default async function ApplicationPage({ params }: PageProps<"/espace-can
             </nav>
             {!application ? (
               <p role="status" className="rounded-[10px] bg-white p-6 text-[17px] leading-[26px] text-ink-deep">
-                {user.role === "candidate"
+                {hasCandidateSpace(user.role)
                   ? "Votre candidature est momentanément indisponible. Réessayez dans quelques instants."
                   : "Les candidatures sont réservées aux comptes candidats."}
               </p>

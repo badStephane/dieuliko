@@ -104,8 +104,8 @@ func New(deps Deps) (*gin.Engine, error) {
 	}
 	auth.NewHandler(deps.Accounts, deps.AuthLimiters, httpx.EndUserIP(isInternal)).Register(v1)
 	candidate.NewHandler(deps.Profiles, deps.CVs, deps.UploadLimiter).Register(v1, auth.RequireUser(deps.Accounts))
-	assistant.NewHandler(deps.Assistant, deps.Letters, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)
-	application.NewHandler(deps.Applications, deps.ApplyLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidate)
+	assistant.NewHandler(deps.Assistant, deps.Letters, deps.AssistLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidateSpace)
+	application.NewHandler(deps.Applications, deps.ApplyLimiter).Register(v1, auth.RequireUser(deps.Accounts), candidate.RequireCandidateSpace)
 	admin.NewHandler(deps.Admin, deps.AdminLimiter).Register(v1, auth.RequireUser(deps.Accounts))
 
 	return router, nil

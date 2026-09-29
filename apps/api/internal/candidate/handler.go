@@ -62,7 +62,7 @@ func NewHandler(profiles Profiles, cvs CVs, uploads *httpx.RateLimiter) *Handler
 // Register mounts the routes on a router group (e.g. /v1); requireUser authenticates the session
 // (auth.RequireUser) and every route is then restricted to candidates.
 func (h *Handler) Register(group *gin.RouterGroup, requireUser gin.HandlerFunc) {
-	me := group.Group("/me", requireUser, RequireCandidate)
+	me := group.Group("/me", requireUser, RequireCandidateSpace)
 	me.GET("/profile", h.getProfile)
 	me.PUT("/profile", h.saveProfile)
 	me.GET("/cv", h.getCV)
@@ -71,9 +71,10 @@ func (h *Handler) Register(group *gin.RouterGroup, requireUser gin.HandlerFunc) 
 	me.DELETE("/cv", h.deleteCV)
 }
 
-// RequireCandidate restricts a route to candidate accounts (use after auth.RequireUser).
-func RequireCandidate(c *gin.Context) {
-	if auth.CurrentUser(c).Role != auth.RoleCandidate {
+// RequireCandidateSpace restricts a route to accounts with a candidate space (use after auth.RequireUser): candidates,
+// and admins, who may apply like anyone. Other kinds of accounts (companies, later) have none.
+func RequireCandidateSpace(c *gin.Context) {
+	if role := auth.CurrentUser(c).Role; role != auth.RoleCandidate && role != auth.RoleAdmin {
 		httpx.Fail(c, http.StatusForbidden, httpx.CodeForbidden, "Cet espace est réservé aux candidats.")
 		return
 	}

@@ -70,7 +70,7 @@ func (f *fakeApplications) Withdraw(_ context.Context, _ uuid.UUID, id uuid.UUID
 func newRouter(applications Applications) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	NewHandler(applications, NewLimiter(time.Minute)).Register(router.Group("/v1"), auth.RequireUser(sessions{}), candidate.RequireCandidate)
+	NewHandler(applications, NewLimiter(time.Minute)).Register(router.Group("/v1"), auth.RequireUser(sessions{}), candidate.RequireCandidateSpace)
 	return router
 }
 

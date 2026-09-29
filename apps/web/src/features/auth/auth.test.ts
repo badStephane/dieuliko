@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError, type ApiClient, type ApiResponse } from "@/lib/api-client";
 import { createAuthApi } from "./auth-api";
 import { errorState, formText, IDLE } from "./form-state";
-import { ADMIN_HOME_PATH, afterLoginPath, CANDIDATE_HOME_PATH, loginHref, safeNextPath } from "./redirects";
+import { ADMIN_HOME_PATH, afterLoginPath, CANDIDATE_HOME_PATH, hasCandidateSpace, loginHref, safeNextPath } from "./redirects";
 
 const USER = {
   id: "2db42e29-e9c9-4a16-9a58-74856f9aecf1",
@@ -174,5 +174,13 @@ describe("suspended accounts", () => {
     const error = new ApiError("Ce compte est suspendu. Contactez-nous pour en savoir plus.", 403, "account_suspended");
 
     expect(errorState(error).message).toBe("Ce compte est suspendu. Contactez-nous pour en savoir plus.");
+  });
+});
+
+describe("hasCandidateSpace", () => {
+  it("opens the candidate space to candidates and admins only", () => {
+    expect(hasCandidateSpace("candidate")).toBe(true);
+    expect(hasCandidateSpace("admin")).toBe(true);
+    expect(hasCandidateSpace("company")).toBe(false);
   });
 });

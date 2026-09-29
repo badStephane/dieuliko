@@ -1,11 +1,12 @@
 "use client";
 
-import { Building2, ExternalLink, History, LayoutDashboard, Menu, Users, X, type LucideIcon } from "lucide-react";
+import { Building2, ExternalLink, History, LayoutDashboard, Menu, UserRound, Users, X, type LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { LogOutButton } from "@/components/auth/AuthForms";
+import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
 import { ADMIN_AUDIT_PATH, ADMIN_CANDIDATES_PATH, ADMIN_COMPANIES_PATH, ADMIN_HOME_PATH, ADMIN_NEW_COMPANY_PATH } from "@/features/admin/paths";
 
 interface NavItem {
@@ -73,6 +74,13 @@ function SidebarContent({ user, pathname }: { readonly user: AdminShellProps["us
       </nav>
 
       <div className="flex flex-col gap-4 border-t border-white/10 pt-5">
+        <Link
+          href={CANDIDATE_HOME_PATH}
+          className={`flex min-h-11 items-center gap-3 rounded-[8px] px-3 text-[15px] font-semibold text-white/70 hover:bg-white/5 hover:text-white ${FOCUS}`}
+        >
+          <UserRound aria-hidden className="size-5" strokeWidth={1.75} />
+          Mon espace candidat
+        </Link>
         <Link
           href="/"
           target="_blank"

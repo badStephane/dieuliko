@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { ProfileForm } from "@/components/candidate/ProfileForm";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { Container } from "@/components/ui/Container";
-import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
+import { CANDIDATE_HOME_PATH, hasCandidateSpace } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
 import { CANDIDATE_PROFILE_PATH } from "@/features/candidate/paths";
 import { inputFromProfile } from "@/features/candidate/profile-form";
@@ -29,7 +29,7 @@ function BackLink() {
 
 export default async function CandidateProfilePage() {
   const user = await requireUser(CANDIDATE_PROFILE_PATH);
-  const space = user.role === "candidate" ? await loadCandidateSpace() : null;
+  const space = hasCandidateSpace(user.role) ? await loadCandidateSpace() : null;
 
   return (
     <>
@@ -42,7 +42,7 @@ export default async function CandidateProfilePage() {
               <ProfileForm initial={inputFromProfile(space.profile)} />
             ) : (
               <p role="status" className="rounded-[10px] bg-white p-6 text-[17px] leading-[26px] text-ink-deep">
-                {user.role === "candidate"
+                {hasCandidateSpace(user.role)
                   ? "Votre profil est momentanément indisponible. Réessayez dans quelques instants."
                   : "Le profil est réservé aux comptes candidats."}
               </p>

@@ -23,6 +23,7 @@ import (
 const (
 	candidateToken = "candidate-session"
 	adminToken     = "admin-session"
+	companyToken   = "company-session"
 )
 
 var (
@@ -40,6 +41,8 @@ func (sessions) Authenticate(_ context.Context, token string) (auth.User, error)
 		return testCandidate, nil
 	case adminToken:
 		return testAdmin, nil
+	case companyToken:
+		return auth.User{ID: uuid.New(), Role: "company", FirstName: "Sonatel"}, nil
 	}
 	return auth.User{}, auth.ErrUnauthenticated
 }
@@ -170,7 +173,7 @@ func decodeEnvelope(t *testing.T, rec *httptest.ResponseRecorder) (httpx.Envelop
 	return raw.Envelope, raw.Data
 }
 
-func TestMeRoutesRequireACandidateSession(t *testing.T) {
+func TestMeRoutesAreForCandidatesAndAdmins(t *testing.T) {
 	router := newRouter(&fakeProfiles{}, &fakeCVs{}, newUploadLimiter())
 	tests := []struct {
 		name   string
@@ -179,14 +182,20 @@ func TestMeRoutesRequireACandidateSession(t *testing.T) {
 		code   string
 	}{
 		{"no session", "", http.StatusUnauthorized, auth.CodeUnauthenticated},
-		{"admin session", adminToken, http.StatusForbidden, httpx.CodeForbidden},
+		{"another kind of account", companyToken, http.StatusForbidden, httpx.CodeForbidden},
+		{"candidate session", candidateToken, http.StatusOK, ""},
+		{"admin session, who may apply too", adminToken, http.StatusOK, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := serve(router, http.MethodGet, "/v1/me/profile", tt.token, nil, "")
 
 			envelope, _ := decodeEnvelope(t, rec)
-			if rec.Code != tt.status || envelope.Error == nil || envelope.Error.Code != tt.code {
+			code := ""
+			if envelope.Error != nil {
+				code = envelope.Error.Code
+			}
+			if rec.Code != tt.status || code != tt.code {
 				t.Errorf("status %d, body %s", rec.Code, rec.Body)
 			}
 		})

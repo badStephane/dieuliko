@@ -6,7 +6,7 @@ import { ArchivedLetter } from "@/components/candidate/ArchivedLetter";
 import { LetterEditor } from "@/components/candidate/LetterEditor";
 import { PageBanner } from "@/components/layout/PageBanner";
 import { Container } from "@/components/ui/Container";
-import { CANDIDATE_HOME_PATH } from "@/features/auth/redirects";
+import { CANDIDATE_HOME_PATH, hasCandidateSpace } from "@/features/auth/redirects";
 import { requireUser } from "@/features/auth/server";
 import type { Application, Letter } from "@/features/candidate/candidate-api";
 import { letterPath } from "@/features/candidate/paths";
@@ -49,7 +49,7 @@ export default async function LetterPage({ params }: PageProps<"/espace-candidat
   const user = await requireUser(letterPath(slug));
   const isValidSlug = SLUG_PATTERN.test(slug);
   const company = isValidSlug ? await (await getCompanyRepository()).findBySlug(slug) : null;
-  const page = isValidSlug && user.role === "candidate" ? await loadLetterPage(slug) : null;
+  const page = isValidSlug && hasCandidateSpace(user.role) ? await loadLetterPage(slug) : null;
   if (!company) {
     // Taken out of the directory (back-office): the candidate keeps read access to a letter they already wrote.
     if (!page?.letter) notFound();
@@ -83,7 +83,7 @@ export default async function LetterPage({ params }: PageProps<"/espace-candidat
               />
             ) : (
               <p role="status" className="rounded-[10px] bg-white p-6 text-[17px] leading-[26px] text-ink-deep">
-                {user.role === "candidate"
+                {hasCandidateSpace(user.role)
                   ? "Votre lettre est momentanément indisponible. Réessayez dans quelques instants."
                   : "Les lettres de motivation sont réservées aux comptes candidats."}
               </p>
