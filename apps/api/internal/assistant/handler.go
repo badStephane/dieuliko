@@ -96,7 +96,8 @@ func (h *Handler) rewrite(c *gin.Context) {
 		return
 	}
 	var input RewriteInput
-	if !httpx.BindJSON(c, &input) {
+	// Letters are rewritten too, so the body may be as large as a saved letter.
+	if !httpx.BindJSONLimit(c, &input, maxLetterBodyBytes) {
 		return
 	}
 	text, err := h.rewriter.Rewrite(c.Request.Context(), userID, input)

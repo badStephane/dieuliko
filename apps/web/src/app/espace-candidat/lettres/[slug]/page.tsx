@@ -75,6 +75,7 @@ export default async function LetterPage({ params }: PageProps<"/espace-candidat
               <LetterEditor
                 slug={company.slug}
                 companyName={company.name}
+                authorName={`${user.firstName} ${user.lastName}`.trim()}
                 initial={page.letter}
                 isProfileReady={page.isProfileReady}
                 undescribedExperiences={page.undescribedExperiences}

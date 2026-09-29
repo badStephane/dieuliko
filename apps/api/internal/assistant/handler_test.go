@@ -217,6 +217,17 @@ func TestLetterRoutesAcceptALetterAtItsFullLength(t *testing.T) {
 	}
 }
 
+func TestRewriteRouteAcceptsALetterAtItsFullLength(t *testing.T) {
+	rewriter := &fakeRewriter{answer: "Lettre relue."}
+	body := `{"kind":"letter","text":"` + strings.Repeat("é", MaxLetterLength) + `","title":"","organization":""}`
+
+	rec := post(newRouter(rewriter), candidateToken, body)
+
+	if rec.Code != http.StatusOK || rewriter.got.Kind != KindLetter {
+		t.Errorf("status %d: a %d-character letter must fit in a rewrite request", rec.Code, MaxLetterLength)
+	}
+}
+
 func TestLetterRoutesMapErrors(t *testing.T) {
 	tests := []struct {
 		name   string

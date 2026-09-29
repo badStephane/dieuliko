@@ -13,9 +13,9 @@ export type Cv = z.infer<typeof cvSchema>;
 /** Largest CV the API accepts (5 MB); checked before uploading to spare the candidate's data. */
 export const MAX_CV_BYTES = 5 * 1024 * 1024;
 
-/** A profile text for the writing assistant; title and organization situate an experience description. */
+/** A profile text or a letter for the writing assistant; title and organization situate an experience description. */
 export const rewriteInputSchema = z.object({
-  kind: z.enum(["summary", "experience"]),
+  kind: z.enum(["summary", "experience", "letter"]),
   text: z.string(),
   title: z.string(),
   organization: z.string(),

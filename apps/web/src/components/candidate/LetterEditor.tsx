@@ -1,13 +1,15 @@
 "use client";
 
-import { Copy, PenLine, Sparkles } from "lucide-react";
+import { Copy, FileText, PenLine, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition, type ReactNode } from "react";
 import { deleteLetterAction, generateLetterAction, saveLetterAction, type LetterResult } from "@/features/candidate/actions";
 import { MAX_LETTER_LENGTH, type Application, type Letter } from "@/features/candidate/candidate-api";
+import { blanksLeft, letterTemplate } from "@/features/candidate/letter-template";
 import { CANDIDATE_PROFILE_PATH } from "@/features/candidate/paths";
 import { formatDate } from "@/lib/format";
 import { BUTTON, CARD, ConfirmBox, Feedback, PRIMARY, SECONDARY } from "./ActionControls";
+import { AiAssist } from "./AiAssist";
 import { ApplyPanel } from "./ApplyPanel";
 import { useUnsavedChangesWarning } from "./useUnsavedChangesWarning";
 
@@ -19,6 +21,8 @@ type Confirming = "regenerate" | "delete" | null;
 interface LetterEditorProps {
   readonly slug: string;
   readonly companyName: string;
+  /** Signs the letter template; empty leaves a blank. */
+  readonly authorName: string;
   readonly initial: Letter | null;
   /** False when the profile is too empty for the assistant to write from. */
   readonly isProfileReady: boolean;
@@ -60,19 +64,21 @@ interface StartPanelProps {
   readonly isGenerating: boolean;
   readonly onGenerate: () => void;
   readonly onWrite: () => void;
+  readonly onTemplate: () => void;
   readonly status: ReactNode;
   readonly result: LetterResult | null;
 }
 
-/** First visit: let the assistant draft the letter, or start from a blank page. */
-function StartPanel({ companyName, isProfileReady, undescribedExperiences, isGenerating, onGenerate, onWrite, status, result }: StartPanelProps) {
+/** First visit: let the assistant draft the letter, or write it from a template or a blank page. */
+function StartPanel({ companyName, isProfileReady, undescribedExperiences, isGenerating, onGenerate, onWrite, onTemplate, status, result }: StartPanelProps) {
   return (
     <section aria-labelledby="letter-start-title" className={CARD}>
       <h2 id="letter-start-title" className="text-[22px] leading-[30px] font-semibold tab:text-[24px]">
         Votre lettre pour {companyName}
       </h2>
       <p className="text-[17px] leading-[26px] text-ink-deep">
-        L’assistant rédige une première version à partir de votre profil et de la fiche de l’entreprise. Vous la relisez, la modifiez, puis l’enregistrez.
+        L’assistant rédige une première version à partir de votre profil et de la fiche de l’entreprise. Vous préférez écrire vous-même ? Partez de notre
+        modèle : il suffit de remplacer les passages entre crochets, puis l’assistant peut relire votre texte.
       </p>
       {!isProfileReady && (
         <p className="rounded-[10px] bg-accent-soft/50 p-4 text-[16px] leading-6 text-ink">
@@ -89,9 +95,13 @@ function StartPanel({ companyName, isProfileReady, undescribedExperiences, isGen
           <Sparkles aria-hidden className={`size-5 ${isGenerating ? "motion-safe:animate-pulse" : ""}`} />
           {isGenerating ? "Rédaction en cours…" : "Rédiger ma lettre avec l’IA"}
         </button>
+        <button type="button" onClick={onTemplate} disabled={isGenerating} className={SECONDARY}>
+          <FileText aria-hidden className="size-5" />
+          Partir d’un modèle
+        </button>
         <button type="button" onClick={onWrite} disabled={isGenerating} className={SECONDARY}>
           <PenLine aria-hidden className="size-5" />
-          Écrire moi-même
+          Page blanche
         </button>
       </div>
       <p role="status" aria-live="polite" className="text-[16px] leading-6 text-muted">
@@ -103,7 +113,7 @@ function StartPanel({ companyName, isProfileReady, undescribedExperiences, isGen
 }
 
 /** Drafts, edits and saves the candidate's cover letter for one company. */
-export function LetterEditor({ slug, companyName, initial, isProfileReady, undescribedExperiences, hasCv, application }: LetterEditorProps) {
+export function LetterEditor({ slug, companyName, authorName, initial, isProfileReady, undescribedExperiences, hasCv, application }: LetterEditorProps) {
   const [letter, setLetter] = useState<Letter | null>(initial);
   const [content, setContent] = useState(initial?.content ?? "");
   const [isEditing, setIsEditing] = useState(initial !== null);
@@ -113,6 +123,7 @@ export function LetterEditor({ slug, companyName, initial, isProfileReady, undes
   const [copied, setCopied] = useState(false);
   const [, startTransition] = useTransition();
   const isDirty = content !== (letter?.content ?? "");
+  const blanks = blanksLeft(content);
   useUnsavedChangesWarning(isDirty);
 
   function run(kind: Exclude<Pending, null>, action: () => Promise<LetterResult>) {
@@ -158,6 +169,10 @@ export function LetterEditor({ slug, companyName, initial, isProfileReady, undes
       isGenerating={pending === "generate"}
       onGenerate={generate}
       onWrite={() => setIsEditing(true)}
+      onTemplate={() => {
+        setContent(letterTemplate({ companyName, authorName }));
+        setIsEditing(true);
+      }}
       status={status}
       result={result}
     />
@@ -184,6 +199,20 @@ export function LetterEditor({ slug, companyName, initial, isProfileReady, undes
       <p id={`${TEXTAREA_ID}-count`} className="-mt-3 self-end text-[14px] leading-5 text-muted">
         {[...content].length} / {MAX_LETTER_LENGTH}
       </p>
+      {blanks > 0 && (
+        <p className="-mt-2 rounded-[10px] bg-accent-soft/50 p-4 text-[16px] leading-6 text-ink">
+          {blanks === 1 ? "Il reste 1 passage entre crochets à remplacer" : `Il reste ${blanks} passages entre crochets à remplacer`} avant d’envoyer
+          votre candidature.
+        </p>
+      )}
+      {content.trim() !== "" && (
+        <AiAssist
+          kind="letter"
+          text={content}
+          onAccept={setContent}
+          hint="L’assistant corrige la langue et le style de votre texte, sans rien y ajouter. Les passages entre crochets restent à remplir."
+        />
+      )}
 
       {confirming === "regenerate" && (
         <ConfirmBox question="Remplacer votre lettre actuelle par une nouvelle version de l’assistant ?" confirmLabel="Oui, nouvelle version" onConfirm={generate} onCancel={() => setConfirming(null)} />

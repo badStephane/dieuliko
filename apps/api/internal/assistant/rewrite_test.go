@@ -116,6 +116,52 @@ func TestRewriteExperienceDescribesTheGivenJob(t *testing.T) {
 	}
 }
 
+func TestRewriteLetterPolishesTheCandidateTextOnly(t *testing.T) {
+	writer := &fakeWriter{answer: "Madame, Monsieur,\n\nJe souhaite rejoindre votre équipe."}
+	// The profile is not needed: a failing reader proves the letter is polished from its own text.
+	service := NewService(writer, fakeProfiles{err: errors.New("profile store down")})
+
+	got, err := service.Rewrite(context.Background(), userID, RewriteInput{Kind: KindLetter, Text: "madame monsieur, je veut rejoindre [poste]"})
+
+	if err != nil || got != writer.answer {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	prompt := allText(writer.got)
+	for _, want := range []string{"je veut rejoindre [poste]", "crochets", "aucun"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt does not mention %q", want)
+		}
+	}
+	if writer.got.MaxTokens != letterMaxTokens {
+		t.Errorf("max tokens %d, want %d for a whole letter", writer.got.MaxTokens, letterMaxTokens)
+	}
+}
+
+func TestRewriteLetterAcceptsAWholeLetterButNothingLonger(t *testing.T) {
+	service := NewService(&fakeWriter{answer: "Lettre relue."}, fakeProfiles{})
+
+	if _, err := service.Rewrite(context.Background(), userID, RewriteInput{Kind: KindLetter, Text: strings.Repeat("a", MaxLetterLength)}); err != nil {
+		t.Errorf("a %d-character letter must be accepted: %v", MaxLetterLength, err)
+	}
+	_, err := service.Rewrite(context.Background(), userID, RewriteInput{Kind: KindLetter, Text: strings.Repeat("a", MaxLetterLength+1)})
+	var validation *ValidationError
+	if !errors.As(err, &validation) {
+		t.Errorf("a longer letter must be refused, got %v", err)
+	}
+}
+
+func TestRewriteLetterNeedsAText(t *testing.T) {
+	writer := &fakeWriter{}
+	service := NewService(writer, fakeProfiles{})
+
+	_, err := service.Rewrite(context.Background(), userID, RewriteInput{Kind: KindLetter, Text: "  "})
+
+	var validation *ValidationError
+	if !errors.As(err, &validation) || writer.calls != 0 {
+		t.Errorf("got %v after %d model calls, want a validation error and no call", err, writer.calls)
+	}
+}
+
 func TestRewriteRejectsInvalidInputBeforeCallingTheModel(t *testing.T) {
 	tests := []struct {
 		name  string
